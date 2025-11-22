@@ -1,0 +1,138 @@
+# app/api/pipeline - AI 파이프라인 API 엔드포인트
+
+**생성일**: 2024-11-22
+**Phase**: 3 - AI 파이프라인 구현
+
+## 📌 목적
+Phase 1-7 AI 분석 API 제공
+
+## 📁 폴더 구조
+
+```
+app/api/pipeline/
+├── phase1/
+│   └── route.ts      # Normalization (좌표계 설정)
+├── phase2/
+│   └── route.ts      # Structure (구조 추출)
+├── phase3/
+│   └── route.ts      # Openings (개구부 인식)
+├── phase4/
+│   └── route.ts      # Spaces (공간 분석)
+├── phase5/
+│   └── route.ts      # Dimensions (치수 계산)
+├── phase6/
+│   └── route.ts      # Confidence (신뢰도 검증)
+└── phase7/
+    └── route.ts      # Master JSON (최종 합성)
+```
+
+## 🎯 API 공통 사항
+
+### Request Body (Phase 1-5)
+```typescript
+{
+  imageBase64: string         // Base64 이미지 (필수)
+  promptVersion?: string      // 프롬프트 버전 (선택)
+  previousResults?: any       // 이전 Phase 결과 (Phase 2-5)
+}
+```
+
+### Response
+```typescript
+{
+  success: boolean
+  phase: number
+  result: any                 // 검증된 결과
+  resultUrl: string           // Blob Storage URL
+  metadata: {
+    promptVersion: string
+    timestamp: string
+    ...
+  }
+}
+```
+
+### Error Response
+```typescript
+{
+  error: string
+  code?: string
+  errors?: string[]
+}
+```
+
+## 📋 Phase별 특징
+
+### Phase 1-5: 이미지 분석
+- POST 메서드
+- Gemini API 호출
+- Schema 검증
+- 결과 저장
+
+### Phase 6: Human-in-the-Loop
+- POST: 신뢰도 검증
+- PUT: 사용자 피드백 제출
+
+**PUT Request:**
+```typescript
+{
+  phase6Result: any
+  userFeedback: {
+    approved: boolean
+    comments?: string
+    corrections?: any
+  }
+}
+```
+
+### Phase 7: Master JSON 생성
+- POST 메서드
+- Phase 1-6 결과 종합
+- 최종 BIM JSON 생성
+
+**Request Body:**
+```typescript
+{
+  promptVersion?: string
+  allResults: {
+    phase1: any
+    phase2: any
+    phase3: any
+    phase4: any
+    phase5: any
+    phase6: any
+  }
+}
+```
+
+## 🔧 처리 흐름
+
+1. **입력 검증**: 필수 파라미터 확인
+2. **프롬프트 로드**: Blob Storage에서 활성 프롬프트 가져오기
+3. **Gemini API 호출**: 이미지 + 프롬프트 분석
+4. **Schema 검증**: Zod로 응답 검증
+5. **결과 저장**: Blob Storage에 저장
+6. **응답 반환**: 검증된 결과 + 메타데이터
+
+## 🚀 사용 예시
+
+```typescript
+// Phase 1 호출
+const response = await fetch('/api/pipeline/phase1', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    imageBase64: '...',
+    promptVersion: '1.0.0',
+  }),
+})
+
+const data = await response.json()
+console.log('Phase 1 결과:', data.result)
+```
+
+## 📋 다음 작업
+- Rate limiting
+- 응답 캐싱
+- WebSocket 진행 상황 스트리밍
+- 배치 처리 지원

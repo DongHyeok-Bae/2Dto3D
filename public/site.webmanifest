@@ -1,0 +1,27 @@
+{
+  "name": "2Dto3D - AI 기반 건축 도면 3D BIM 변환",
+  "short_name": "2Dto3D",
+  "description": "Google Gemini AI를 활용한 2D 건축 도면의 실시간 3D BIM 모델 변환 서비스",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#9A212D",
+  "background_color": "#F9FAFB",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "start_url": "/",
+  "lang": "ko-KR",
+  "categories": ["business", "education", "productivity"]
+}

@@ -1,0 +1,71 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-neutral-warmGray/20;
+  }
+
+  body {
+    @apply bg-neutral-marble text-neutral-charcoal;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+@layer components {
+  /* Neo-Renaissance 스타일 버튼 */
+  .btn-primary {
+    @apply bg-primary-crimson text-white px-6 py-3 rounded-neo font-medium
+           hover:bg-primary-crimson/90 transition-all duration-200
+           shadow-neo hover:shadow-neo-md;
+  }
+
+  .btn-secondary {
+    @apply bg-primary-navy text-white px-6 py-3 rounded-neo font-medium
+           hover:bg-primary-navy/90 transition-all duration-200
+           shadow-neo hover:shadow-neo-md;
+  }
+
+  .btn-outline {
+    @apply border-2 border-primary-crimson text-primary-crimson px-6 py-3
+           rounded-neo font-medium hover:bg-primary-crimson hover:text-white
+           transition-all duration-200;
+  }
+
+  /* 카드 스타일 */
+  .card {
+    @apply bg-white rounded-neo-md shadow-neo p-6;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-neo-lg transition-all duration-300 cursor-pointer;
+  }
+
+  /* 입력 필드 */
+  .input {
+    @apply w-full px-4 py-2 rounded-neo border border-neutral-warmGray/30
+           focus:outline-none focus:ring-2 focus:ring-primary-crimson/20
+           focus:border-primary-crimson transition-all;
+  }
+
+  /* 월계수 패턴 */
+  .laurel-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 30c0-5.5 4.5-10 10-10s10 4.5 10 10-4.5 10-10 10-10-4.5-10-10z' fill='%23C5A059' fill-opacity='0.03'/%3E%3C/svg%3E");
+  }
+}
+
+@layer utilities {
+  .text-gradient-royal {
+    @apply bg-gradient-to-r from-primary-crimson to-primary-navy bg-clip-text text-transparent;
+  }
+
+  .bg-gradient-royal {
+    @apply bg-gradient-to-br from-primary-crimson via-primary-navy to-primary-gold;
+  }
+}
