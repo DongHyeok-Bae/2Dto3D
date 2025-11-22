@@ -13,11 +13,11 @@
 
 ## 📌 소개
 
-2Dto3D는 Google Gemini AI를 활용하여 2D 건축 도면을 실시간으로 3D BIM 모델로 변환하는 혁신적인 웹 서비스입니다. 경희대학교 건축학과와 함께 개발된 이 도구는 건축 설계 프로세스를 획기적으로 개선합니다.
+2Dto3D는 Google Gemini AI를 활용하여 2D 건축 도면을 실시간으로 3D BIM 모델로 변환하는 혁신적인 웹 서비스입니다. 경희대학교 건축공학과와 함께 개발된 이 도구는 건축 설계 프로세스를 획기적으로 개선합니다.
 
 ### ✨ 주요 기능
 
-- 🎯 **AI 기반 도면 분석**: Google Gemini 1.5 Pro를 활용한 정확한 도면 인식
+- 🎯 **AI 기반 도면 분석**: Google Gemini 3 Pro를 활용한 정확한 도면 인식
 - 🏗️ **7단계 변환 파이프라인**: 체계적인 단계별 BIM 데이터 생성
 - 🎨 **실시간 3D 시각화**: Three.js 기반 인터랙티브 3D 뷰어
 - 💾 **다양한 내보내기**: glTF, OBJ, STL, IFC-like, CSV 등 지원
@@ -175,34 +175,24 @@ Vercel 대시보드에서 설정:
 
 ## 📝 라이선스
 
-MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일 참조
-
-## 🤝 기여하기
-
-기여를 환영합니다! Pull Request를 보내주세요.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+MIT License
 
 ## 👥 팀
 
-- **경희대학교 건축학과**
-- **2Dto3D Development Team**
+- **경희대학교 건축공학과**
+- **2Dto3D 건축시스템설계 Team**
 
 ## 📞 문의
 
-- 이슈: [GitHub Issues](https://github.com/yourusername/2dto3d/issues)
-- 이메일: contact@2dto3d.com
+- kkt: dhbae07
+- Email: dhbae07@naver.com
 
 ## 🙏 감사의 말
 
-- Google Gemini AI Team
-- Vercel Platform
-- Three.js Community
-- 경희대학교
+- thank yaaa, Claude code!!!!
+- and also thank you, Ph.D JangWoon-Baek 
+- Google Gemini AI
+- KungHee.U, ArchitectureEngineering
 
 ---
 
