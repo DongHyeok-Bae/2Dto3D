@@ -7,7 +7,7 @@ import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js'
 import { STLExporter } from 'three/addons/exporters/STLExporter.js'
-import type { MasterJSON } from '@/types/pipeline'
+import type { MasterJSON } from '@/types'
 import { buildSceneFromMasterJSON } from '@/lib/three/sceneBuilder'
 
 /**

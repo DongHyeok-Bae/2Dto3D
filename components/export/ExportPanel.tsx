@@ -13,7 +13,7 @@ import {
 } from '@/lib/export/dataExport'
 import { exportAsGLTF, exportAsOBJ, exportAsSTL } from '@/lib/export/modelExport'
 import { saveProjectToFile, type ProjectData } from '@/lib/project/projectManager'
-import type { MasterJSON } from '@/types/pipeline'
+import type { MasterJSON } from '@/types'
 import { usePipelineStore } from '@/store/pipelineStore'
 
 interface ExportPanelProps {
@@ -60,26 +60,25 @@ export default function ExportPanel({ masterJSON, onClose }: ExportPanelProps) {
           break
 
         case 'csv':
-          if (!data) break
           switch (csvType) {
             case 'walls':
-              if (data.structuralElements?.walls) {
-                exportWallsAsCSV(data.structuralElements.walls)
+              if (results.phase2?.primaryWalls) {
+                exportWallsAsCSV(results.phase2.primaryWalls as any)
               }
               break
             case 'spaces':
-              if (data.spaces) {
-                exportSpacesAsCSV(data.spaces)
+              if (results.phase4?.spaces) {
+                exportSpacesAsCSV(results.phase4.spaces)
               }
               break
             case 'doors':
-              if (data.openings?.doors) {
-                exportDoorsAsCSV(data.openings.doors)
+              if (results.phase3?.doors) {
+                exportDoorsAsCSV(results.phase3.doors)
               }
               break
             case 'windows':
-              if (data.openings?.windows) {
-                exportWindowsAsCSV(data.openings.windows)
+              if (results.phase3?.windows) {
+                exportWindowsAsCSV(results.phase3.windows)
               }
               break
           }

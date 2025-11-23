@@ -4,7 +4,7 @@
  */
 
 import { put, list, del, head } from '@vercel/blob'
-import type { MasterJSON } from '@/types/pipeline'
+import type { MasterJSON } from '@/types'
 import type { PipelineResults } from '@/store/pipelineStore'
 
 /**

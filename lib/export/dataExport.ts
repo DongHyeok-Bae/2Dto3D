@@ -3,7 +3,7 @@
  * 다양한 형식으로 데이터를 내보내는 기능 제공
  */
 
-import type { MasterJSON, Phase1Result, Phase2Result, Phase3Result, Phase4Result, Phase5Result } from '@/types/pipeline'
+import type { MasterJSON, Phase1Result, Phase2Result, Phase3Result, Phase4Result, Phase5Result } from '@/types'
 
 /**
  * JSON 내보내기
