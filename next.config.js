@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path')
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
@@ -35,6 +37,12 @@ const nextConfig = {
 
   // 웹팩 최적화
   webpack: (config, { isServer }) => {
+    // Path alias 설정
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(__dirname),
+    }
+
     // Three.js 최적화
     if (!isServer) {
       config.resolve.fallback = {
