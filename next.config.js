@@ -22,7 +22,7 @@ const nextConfig = {
       '@react-three/fiber',
       '@react-three/drei',
       'three',
-      'monaco-editor',
+      '@monaco-editor/react',
       'zustand',
     ],
   },
