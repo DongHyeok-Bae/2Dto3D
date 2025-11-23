@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listPromptVersions, uploadPrompt, deletePrompt } from '@/lib/config/blob-storage'
 import { v4 as uuidv4 } from 'uuid'
+import { promptStorage, defaultPromptTemplate } from '@/lib/prompt-storage'
 
 /**
  * GET /api/admin/prompts?phase=1
@@ -27,7 +27,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const versions = await listPromptVersions(phaseNumber)
+    const versions = promptStorage.getByPhase(phaseNumber)
+
+    // 버전이 없으면 기본 템플릿 반환
+    if (versions.length === 0) {
+      const defaultContent = defaultPromptTemplate.replace(/{phase}/g, phaseNumber.toString())
+      return NextResponse.json({
+        success: true,
+        phase: phaseNumber,
+        versions: [{
+          id: 'default',
+          version: '1.0.0',
+          content: defaultContent,
+          phaseNumber,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }],
+      })
+    }
 
     return NextResponse.json({
       success: true,
@@ -52,6 +70,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { phaseNumber, version, content, isActive } = body
 
+    console.log('[POST /api/admin/prompts] Request body:', { phaseNumber, version, contentLength: content?.length, isActive })
+
     if (!phaseNumber || !version || !content) {
       return NextResponse.json(
         { error: 'Missing required fields: phaseNumber, version, content' },
@@ -69,7 +89,7 @@ export async function POST(request: NextRequest) {
     const id = uuidv4()
     const now = new Date().toISOString()
 
-    const url = await uploadPrompt(phaseNumber, version, content, {
+    const key = promptStorage.save(phaseNumber, version, content, {
       id,
       version,
       phaseNumber,
@@ -78,11 +98,13 @@ export async function POST(request: NextRequest) {
       updatedAt: now,
     })
 
+    console.log('[POST /api/admin/prompts] Prompt saved successfully:', key)
+
     return NextResponse.json({
       success: true,
       prompt: {
         id,
-        url,
+        key, // URL 대신 key 반환
         phaseNumber,
         version,
         isActive,
@@ -91,7 +113,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('[POST /api/admin/prompts]', error)
+    console.error('[POST /api/admin/prompts] Error:', error)
     return NextResponse.json(
       { error: 'Failed to create prompt version' },
       { status: 500 }
@@ -100,29 +122,38 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE /api/admin/prompts?url=...
+ * DELETE /api/admin/prompts?key=...
  * 프롬프트 버전 삭제
  */
 export async function DELETE(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const url = searchParams.get('url')
+    const key = searchParams.get('key')
 
-    if (!url) {
+    if (!key) {
       return NextResponse.json(
-        { error: 'Prompt URL is required' },
+        { error: 'Prompt key is required' },
         { status: 400 }
       )
     }
 
-    await deletePrompt(url)
+    const deleted = promptStorage.delete(key)
+
+    if (!deleted) {
+      return NextResponse.json(
+        { error: 'Prompt not found' },
+        { status: 404 }
+      )
+    }
+
+    console.log('[DELETE /api/admin/prompts] Prompt deleted:', key)
 
     return NextResponse.json({
       success: true,
       message: 'Prompt deleted successfully',
     })
   } catch (error) {
-    console.error('[DELETE /api/admin/prompts]', error)
+    console.error('[DELETE /api/admin/prompts] Error:', error)
     return NextResponse.json(
       { error: 'Failed to delete prompt' },
       { status: 500 }

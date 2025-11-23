@@ -1,7 +1,7 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PromptEditor from '@/components/admin/PromptEditor'
 import Link from 'next/link'
 
@@ -12,8 +12,35 @@ export default function PhasePromptPage() {
 
   const [promptContent, setPromptContent] = useState('')
   const [version, setVersion] = useState('1.0.0')
+  const [isLoading, setIsLoading] = useState(true)
+
+  // 기존 프롬프트 데이터 로드
+  useEffect(() => {
+    const loadPrompt = async () => {
+      try {
+        const response = await fetch(`/api/admin/prompts/${phase}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data) {
+            setPromptContent(data.content || '')
+            setVersion(data.version || '1.0.0')
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load prompt:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadPrompt()
+  }, [phase])
 
   const handleSave = async () => {
+    if (!promptContent.trim()) {
+      alert('프롬프트 내용을 입력해주세요.')
+      return
+    }
+
     try {
       const response = await fetch('/api/admin/prompts', {
         method: 'POST',
@@ -28,6 +55,9 @@ export default function PhasePromptPage() {
 
       if (response.ok) {
         alert('프롬프트가 저장되었습니다!')
+      } else {
+        const error = await response.text()
+        alert(`저장 실패: ${error}`)
       }
     } catch (error) {
       console.error('Save error:', error)
@@ -66,10 +96,19 @@ export default function PhasePromptPage() {
       </div>
 
       {/* Editor */}
-      <PromptEditor
-        initialValue={promptContent}
-        onChange={setPromptContent}
-      />
+      {isLoading ? (
+        <div className="flex items-center justify-center h-[600px] border border-neutral-warmGray/30 rounded-neo-md bg-neutral-marble">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-primary-crimson border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-sm text-neutral-warmGray">프롬프트 데이터 로딩 중...</p>
+          </div>
+        </div>
+      ) : (
+        <PromptEditor
+          initialValue={promptContent}
+          onChange={setPromptContent}
+        />
+      )}
 
       {/* Info */}
       <div className="mt-6 card">
