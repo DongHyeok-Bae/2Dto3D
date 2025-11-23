@@ -53,5 +53,11 @@
     "eslint": "^8.56.0",
     "eslint-config-next": "^14.2.0",
     "prettier": "^3.2.0"
+  },
+  "overrides": {
+    "react-json-view": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   }
 }
