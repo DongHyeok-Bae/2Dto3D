@@ -6,13 +6,18 @@
 
 import { NextRequest } from 'next/server'
 import { analyzeWithGemini } from '@/lib/ai/gemini-client'
-import { validatePhaseResult } from '@/lib/validation/schemas'
+import { validatePhaseResultSafe } from '@/lib/validation/schemas'
 import { errorResponse, successResponse, ValidationError, GeminiError, PromptNotFoundError } from '@/lib/error/handlers'
 import { list } from '@vercel/blob'
-import { saveExecutionResult } from '@/lib/config/blob-storage'
+import { getLatestPrompt } from '@/lib/config/prompt-manager'
+import { saveExecutionResult } from '@/lib/config/result-manager'
+import { initializeLocalPrompts } from '@/lib/config/prompt-loader'
 
 export async function POST(request: NextRequest) {
   try {
+    // 로컬 프롬프트 자동 로드 (첫 호출 시에만 실행됨)
+    await initializeLocalPrompts()
+
     const body = await request.json()
     const { imageBase64, promptVersion } = body
 
@@ -21,30 +26,15 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('이미지가 필요합니다.')
     }
 
-    // 프롬프트 가져오기
-    let promptContent: string
+    // 프롬프트 가져오기 (환경 자동 감지)
+    const promptData = await getLatestPrompt(1, promptVersion)
 
-    if (promptVersion) {
-      // 특정 버전 프롬프트 사용
-      const { blobs } = await list({ prefix: `prompts/phase1/v${promptVersion}` })
-      if (blobs.length === 0) {
-        throw new PromptNotFoundError(1)
-      }
-      const response = await fetch(blobs[0].url)
-      promptContent = await response.text()
-    } else {
-      // 활성 프롬프트 사용 (v1.0.0 기본)
-      const { blobs } = await list({ prefix: 'prompts/phase1/' })
-      if (blobs.length === 0) {
-        throw new PromptNotFoundError(1)
-      }
-      // 가장 최근 프롬프트 사용
-      const latestBlob = blobs.sort((a, b) =>
-        new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )[0]
-      const response = await fetch(latestBlob.url)
-      promptContent = await response.text()
+    if (!promptData) {
+      throw new PromptNotFoundError(1)
     }
+
+    const promptContent = promptData.content
+    const actualVersion = promptData.version
 
     // Gemini API 호출
     let result
@@ -54,20 +44,19 @@ export async function POST(request: NextRequest) {
       throw new GeminiError(error instanceof Error ? error.message : 'Gemini API 호출 실패')
     }
 
-    // 결과 검증
-    const validation = validatePhaseResult(1, result)
-    if (!validation.valid) {
-      throw new ValidationError('Phase 1 결과 검증 실패', validation.errors)
-    }
+    // Safe Validation: 검증 실패해도 원본 데이터 저장
+    const validation = validatePhaseResultSafe(1, result)
 
-    // 실행 결과 저장
+    // 실행 결과 저장 (검증 실패해도 저장됨)
     const resultUrl = await saveExecutionResult(
       1,
-      promptVersion || 'latest',
-      validation.data,
+      actualVersion,
+      validation.data, // 원본 또는 검증된 데이터
       {
         timestamp: new Date().toISOString(),
         imageSize: imageBase64.length,
+        validated: validation.valid, // 검증 여부 메타데이터
+        validationErrors: validation.errors, // 검증 에러 (있으면)
       }
     )
 
@@ -77,8 +66,10 @@ export async function POST(request: NextRequest) {
       result: validation.data,
       resultUrl,
       metadata: {
-        promptVersion: promptVersion || 'latest',
+        promptVersion: actualVersion,
         timestamp: new Date().toISOString(),
+        validated: validation.valid, // 검증 여부 표시
+        validationWarnings: validation.warning ? validation.errors : undefined,
       },
     })
   } catch (error) {

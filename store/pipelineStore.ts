@@ -10,6 +10,15 @@ import type {
   MasterJSON,
 } from '@/types'
 
+// Phase 결과 메타데이터 인터페이스
+export interface PhaseMetadata {
+  validated?: boolean // 검증 성공 여부
+  validationErrors?: string[] // 검증 에러 (있으면)
+  timestamp: string // 저장 시각
+  promptVersion?: string // 프롬프트 버전
+  [key: string]: any // 추가 메타데이터
+}
+
 interface PipelineState {
   // 현재 상태
   currentPhase: number
@@ -27,6 +36,17 @@ interface PipelineState {
     phase7?: MasterJSON
   }
 
+  // 각 Phase 메타데이터
+  metadata: {
+    phase1?: PhaseMetadata
+    phase2?: PhaseMetadata
+    phase3?: PhaseMetadata
+    phase4?: PhaseMetadata
+    phase5?: PhaseMetadata
+    phase6?: PhaseMetadata
+    phase7?: PhaseMetadata
+  }
+
   // 실행 상태
   executing: Record<number, boolean>
   errors: Record<number, string | null>
@@ -34,7 +54,7 @@ interface PipelineState {
   // 액션
   setCurrentPhase: (phase: number) => void
   setUploadedImage: (image: string, filename?: string) => void
-  setPhaseResult: (phase: number, result: any) => void
+  setPhaseResult: (phase: number, result: any, metadata?: PhaseMetadata) => void
   setExecuting: (phase: number, executing: boolean) => void
   setError: (phase: number, error: string | null) => void
   reset: () => void
@@ -46,6 +66,7 @@ const initialState = {
   uploadedImage: null,
   uploadedImageName: null,
   results: {},
+  metadata: {},
   executing: {},
   errors: {},
 }
@@ -54,6 +75,7 @@ export const usePipelineStore = create<PipelineState>()(
   persist(
     set => ({
       ...initialState,
+      metadata: {},
 
       setCurrentPhase: phase => set({ currentPhase: phase }),
 
@@ -64,11 +86,17 @@ export const usePipelineStore = create<PipelineState>()(
           currentPhase: 1,
         }),
 
-      setPhaseResult: (phase, result) =>
+      setPhaseResult: (phase, result, metadata) =>
         set(state => ({
           results: {
             ...state.results,
             [`phase${phase}`]: result,
+          },
+          metadata: {
+            ...state.metadata,
+            [`phase${phase}`]: metadata || {
+              timestamp: new Date().toISOString(),
+            },
           },
           currentPhase: phase < 7 ? phase + 1 : phase,
         })),
@@ -94,14 +122,17 @@ export const usePipelineStore = create<PipelineState>()(
       resetFromPhase: phase =>
         set(state => {
           const newResults = { ...state.results }
+          const newMetadata = { ...state.metadata }
 
           // phase부터 이후 결과 모두 삭제
           for (let i = phase; i <= 7; i++) {
             delete newResults[`phase${i}` as keyof typeof newResults]
+            delete newMetadata[`phase${i}` as keyof typeof newMetadata]
           }
 
           return {
             results: newResults,
+            metadata: newMetadata,
             currentPhase: phase - 1,
           }
         }),
@@ -113,6 +144,7 @@ export const usePipelineStore = create<PipelineState>()(
         uploadedImage: state.uploadedImage,
         uploadedImageName: state.uploadedImageName,
         results: state.results,
+        metadata: state.metadata,
       }),
     }
   )

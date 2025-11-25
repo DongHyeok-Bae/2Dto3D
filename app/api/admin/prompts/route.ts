@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { promptStorage, defaultPromptTemplate } from '@/lib/prompt-storage'
+import { listPrompts, savePrompt, deletePrompt } from '@/lib/config/prompt-manager'
+import { getStorageEnvironment } from '@/lib/config/environment'
 
 /**
  * GET /api/admin/prompts?phase=1
@@ -27,7 +29,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const versions = promptStorage.getByPhase(phaseNumber)
+    // 통합 레이어 사용 (환경 자동 감지)
+    const versions = await listPrompts(phaseNumber)
 
     // 버전이 없으면 기본 템플릿 반환
     if (versions.length === 0) {
@@ -35,6 +38,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         phase: phaseNumber,
+        environment: getStorageEnvironment(),
         versions: [{
           id: 'default',
           version: '1.0.0',
@@ -50,6 +54,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       phase: phaseNumber,
+      environment: getStorageEnvironment(),
       versions,
     })
   } catch (error) {
@@ -89,22 +94,23 @@ export async function POST(request: NextRequest) {
     const id = uuidv4()
     const now = new Date().toISOString()
 
-    const key = promptStorage.save(phaseNumber, version, content, {
+    // 통합 레이어 사용 (환경 자동 감지)
+    const result = await savePrompt(phaseNumber, version, content, {
       id,
-      version,
-      phaseNumber,
       isActive: isActive || false,
       createdAt: now,
       updatedAt: now,
     })
 
-    console.log('[POST /api/admin/prompts] Prompt saved successfully:', key)
+    console.log('[POST /api/admin/prompts] Prompt saved successfully:', result)
 
     return NextResponse.json({
       success: true,
+      environment: getStorageEnvironment(),
       prompt: {
         id,
-        key, // URL 대신 key 반환
+        key: result.key,      // 로컬: key 반환
+        url: result.url,      // Vercel: url 반환
         phaseNumber,
         version,
         isActive,
@@ -122,22 +128,23 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE /api/admin/prompts?key=...
+ * DELETE /api/admin/prompts?key=... (로컬) 또는 ?url=... (Vercel)
  * 프롬프트 버전 삭제
  */
 export async function DELETE(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const key = searchParams.get('key')
+    const keyOrUrl = searchParams.get('key') || searchParams.get('url')
 
-    if (!key) {
+    if (!keyOrUrl) {
       return NextResponse.json(
-        { error: 'Prompt key is required' },
+        { error: 'Prompt key or url is required' },
         { status: 400 }
       )
     }
 
-    const deleted = promptStorage.delete(key)
+    // 통합 레이어 사용 (환경 자동 감지)
+    const deleted = await deletePrompt(keyOrUrl)
 
     if (!deleted) {
       return NextResponse.json(
@@ -146,10 +153,11 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    console.log('[DELETE /api/admin/prompts] Prompt deleted:', key)
+    console.log('[DELETE /api/admin/prompts] Prompt deleted:', keyOrUrl)
 
     return NextResponse.json({
       success: true,
+      environment: getStorageEnvironment(),
       message: 'Prompt deleted successfully',
     })
   } catch (error) {

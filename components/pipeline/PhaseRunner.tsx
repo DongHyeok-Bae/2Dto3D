@@ -93,8 +93,8 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
 
       const data = await response.json()
 
-      // 결과 저장
-      setPhaseResult(phaseNumber, data.result)
+      // 결과 저장 (메타데이터 포함)
+      setPhaseResult(phaseNumber, data.result, data.metadata)
       setPhaseStatuses(prev => ({ ...prev, [phaseNumber]: 'completed' }))
 
       return data.result

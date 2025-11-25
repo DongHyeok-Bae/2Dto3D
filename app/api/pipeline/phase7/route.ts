@@ -9,10 +9,15 @@ import { generateMasterJSON } from '@/lib/ai/gemini-client'
 import { validatePhaseResult } from '@/lib/validation/schemas'
 import { errorResponse, successResponse, ValidationError, GeminiError, PromptNotFoundError } from '@/lib/error/handlers'
 import { list } from '@vercel/blob'
-import { saveExecutionResult } from '@/lib/config/blob-storage'
+import { getLatestPrompt } from '@/lib/config/prompt-manager'
+import { saveExecutionResult } from '@/lib/config/result-manager'
+import { initializeLocalPrompts } from '@/lib/config/prompt-loader'
 
 export async function POST(request: NextRequest) {
   try {
+    // 로컬 프롬프트 자동 로드 (첫 호출 시에만 실행됨)
+    await initializeLocalPrompts()
+
     const body = await request.json()
     const { promptVersion, allResults } = body
 
@@ -29,16 +34,15 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Phase 1-6의 모든 결과가 필요합니다.')
     }
 
-    // 프롬프트 가져오기
-    const { blobs } = await list({ prefix: 'prompts/phase7/' })
-    if (blobs.length === 0) {
+    // 프롬프트 가져오기 (환경 자동 감지)
+    const promptData = await getLatestPrompt(7, promptVersion)
+
+    if (!promptData) {
       throw new PromptNotFoundError(7)
     }
-    const latestBlob = blobs.sort((a, b) =>
-      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    )[0]
-    const response = await fetch(latestBlob.url)
-    const promptContent = await response.text()
+
+    const promptContent = promptData.content
+    const actualVersion = promptData.version
 
     // Gemini API 호출 (Phase 1-6 결과 종합)
     let result
@@ -61,10 +65,10 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Phase 7 결과 검증 실패', validation.errors)
     }
 
-    // 최종 결과 저장
+    // 최종 결과 저장 (환경 자동 감지)
     const resultUrl = await saveExecutionResult(
       7,
-      promptVersion || 'latest',
+      actualVersion,
       validation.data,
       {
         timestamp: new Date().toISOString(),
@@ -78,7 +82,7 @@ export async function POST(request: NextRequest) {
       result: validation.data,
       resultUrl,
       metadata: {
-        promptVersion: promptVersion || 'latest',
+        promptVersion: actualVersion,
         timestamp: new Date().toISOString(),
         message: '최종 BIM JSON이 생성되었습니다.',
       },

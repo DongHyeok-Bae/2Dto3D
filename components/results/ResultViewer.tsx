@@ -14,7 +14,7 @@ const PHASE_NAMES = {
 }
 
 export default function ResultViewer() {
-  const { results } = usePipelineStore()
+  const { results, metadata } = usePipelineStore()
   const [selectedPhase, setSelectedPhase] = useState<number>(1)
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted')
 
@@ -48,6 +48,7 @@ export default function ResultViewer() {
   }
 
   const currentResult = results[`phase${selectedPhase}` as keyof typeof results]
+  const currentMetadata = metadata[`phase${selectedPhase}` as keyof typeof metadata]
 
   return (
     <div className="space-y-4">
@@ -84,23 +85,59 @@ export default function ResultViewer() {
 
       {/* Phase Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {availablePhases.map(phase => (
-          <button
-            key={phase}
-            onClick={() => setSelectedPhase(phase)}
-            className={`
-              px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors
-              ${
-                selectedPhase === phase
-                  ? 'bg-gradient-royal text-white'
-                  : 'bg-neutral-warmGray/10 text-neutral-warmGray hover:bg-neutral-warmGray/20'
-              }
-            `}
-          >
-            Phase {phase}: {PHASE_NAMES[phase as keyof typeof PHASE_NAMES]}
-          </button>
-        ))}
+        {availablePhases.map(phase => {
+          const phaseMetadata = metadata[`phase${phase}` as keyof typeof metadata]
+          const isValidated = phaseMetadata?.validated
+
+          return (
+            <button
+              key={phase}
+              onClick={() => setSelectedPhase(phase)}
+              className={`
+                px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors relative
+                ${
+                  selectedPhase === phase
+                    ? 'bg-gradient-royal text-white'
+                    : 'bg-neutral-warmGray/10 text-neutral-warmGray hover:bg-neutral-warmGray/20'
+                }
+              `}
+            >
+              <span className="flex items-center gap-2">
+                Phase {phase}: {PHASE_NAMES[phase as keyof typeof PHASE_NAMES]}
+                {isValidated === true && (
+                  <span className="text-green-500" title="검증 성공">✓</span>
+                )}
+                {isValidated === false && (
+                  <span className="text-yellow-500" title="검증 실패 (원본 저장됨)">⚠</span>
+                )}
+              </span>
+            </button>
+          )
+        })}
       </div>
+
+      {/* Validation Warning */}
+      {currentMetadata?.validated === false && currentMetadata?.validationErrors && (
+        <div className="card bg-yellow-50 border-yellow-200">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div className="flex-1">
+              <h3 className="font-semibold text-yellow-900 mb-2">검증 실패 (원본 데이터 저장됨)</h3>
+              <p className="text-sm text-yellow-800 mb-2">
+                스키마 검증에 실패했지만 AI 원본 출력이 저장되었습니다. 프롬프트를 수정하거나 스키마를 업데이트할 수 있습니다.
+              </p>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-yellow-900">검증 에러:</p>
+                {currentMetadata.validationErrors.map((error, idx) => (
+                  <div key={idx} className="text-xs text-yellow-700 font-mono bg-yellow-100 px-2 py-1 rounded">
+                    {error}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Result Display */}
       <div className="card">

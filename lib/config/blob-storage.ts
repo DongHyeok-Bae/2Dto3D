@@ -43,13 +43,7 @@ export async function listPromptVersions(phaseNumber: number) {
     prefix: `prompts/phase${phaseNumber}/`,
   })
 
-  return blobs.map(blob => ({
-    url: blob.url,
-    pathname: blob.pathname,
-    size: blob.size,
-    uploadedAt: blob.uploadedAt,
-    ...blob,
-  }))
+  return blobs
 }
 
 /**
@@ -102,13 +96,7 @@ export async function listExecutionResults(
 
   const { blobs } = await list({ prefix })
 
-  return blobs.map(blob => ({
-    url: blob.url,
-    pathname: blob.pathname,
-    size: blob.size,
-    uploadedAt: blob.uploadedAt,
-    ...blob,
-  }))
+  return blobs
 }
 
 /**

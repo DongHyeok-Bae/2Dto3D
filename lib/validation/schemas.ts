@@ -323,3 +323,60 @@ export function validatePhaseResultPartial(
     }
   }
 }
+
+/**
+ * Safe Validation: 검증 실패해도 원본 데이터 반환
+ * Phase 1-6에서 사용 (프롬프트 실험 허용)
+ *
+ * @param phaseNumber - Phase 번호 (1-7)
+ * @param data - 검증할 데이터
+ * @returns 항상 데이터 반환 (원본 또는 검증된 데이터)
+ */
+export function validatePhaseResultSafe(
+  phaseNumber: number,
+  data: any
+): {
+  valid: boolean
+  data: any // 항상 데이터 반환 (원본 또는 검증된 데이터)
+  validatedData?: any // 검증 성공 시에만 존재
+  errors?: string[]
+  warning?: boolean // 검증 실패 시 true
+} {
+  const schema = schemaMap[phaseNumber as keyof typeof schemaMap]
+
+  if (!schema) {
+    console.warn(`⚠️ [Phase ${phaseNumber}] Invalid phase number, storing raw data`)
+    return {
+      valid: false,
+      data, // 원본 그대로 반환
+      warning: true,
+      errors: [`Invalid phase number: ${phaseNumber}`],
+    }
+  }
+
+  try {
+    const validated = schema.parse(data)
+    return {
+      valid: true,
+      data: validated, // 검증된 데이터
+      validatedData: validated,
+    }
+  } catch (error) {
+    // 검증 실패해도 원본 데이터 반환
+    const errors =
+      error instanceof z.ZodError
+        ? error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        : ['Unknown validation error']
+
+    console.warn(`⚠️ [Phase ${phaseNumber}] Validation failed but storing raw data:`)
+    console.warn(`   Errors: ${errors.join(', ')}`)
+    console.warn(`   Raw data will be stored and passed to next phase`)
+
+    return {
+      valid: false,
+      data, // 원본 그대로 반환
+      warning: true,
+      errors,
+    }
+  }
+}

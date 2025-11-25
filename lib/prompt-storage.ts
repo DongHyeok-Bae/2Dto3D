@@ -1,6 +1,12 @@
 // 프롬프트 저장소 - 메모리 기반 (개발용)
 // 실제 운영에서는 데이터베이스 사용 권장
 
+// Next.js HMR(Hot Module Replacement)에서도 싱글톤 인스턴스를 유지하기 위해
+// global 객체를 사용합니다. 이렇게 하면 모듈이 재로드되어도 동일한 인스턴스를 참조합니다.
+declare global {
+  var __promptStorage: PromptStorage | undefined
+}
+
 interface PromptData {
   id: string
   key: string
@@ -115,7 +121,11 @@ class PromptStorage {
 }
 
 // 싱글톤 인스턴스 export
-export const promptStorage = PromptStorage.getInstance()
+// Next.js 개발 모드에서 HMR이 발생해도 동일한 인스턴스를 유지하도록
+// global 객체에 저장합니다.
+export const promptStorage =
+  global.__promptStorage ??
+  (global.__promptStorage = PromptStorage.getInstance())
 
 // 기본 프롬프트 템플릿
 export const defaultPromptTemplate = `# Phase {phase} Prompt

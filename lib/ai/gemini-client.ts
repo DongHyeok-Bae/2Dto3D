@@ -4,13 +4,23 @@
  * Phase 1-7 파이프라인에서 사용되는 Gemini AI 호출 유틸리티
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI, MediaResolution, ThinkingLevel } from '@google/genai'
+import { GeminiDebugger } from './gemini-debugger'
+
+// API 키 검증
+const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY
+if (!apiKey) {
+  console.error('ERROR: Gemini API key is not configured')
+  throw new Error('GOOGLE_AI_API_KEY or GEMINI_API_KEY environment variable must be set')
+}
 
 // Gemini API 인스턴스
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '')
+const genAI = new GoogleGenAI({
+  apiKey
+})
 
 /**
- * Gemini 1.5 Pro 모델로 이미지 + 프롬프트 분석
+ * Gemini 3 Pro Preview 모델로 이미지 + 프롬프트 분석
  *
  * @param imageBase64 - Base64 인코딩된 이미지 (data:image/png;base64,... 형식)
  * @param prompt - Phase별 프롬프트 내용
@@ -22,8 +32,12 @@ export async function analyzeWithGemini(
   prompt: string,
   phaseNumber: number
 ): Promise<any> {
+  // 디버거 초기화
+  const geminiDebugger = new GeminiDebugger(phaseNumber)
+
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' })
+    // ✅ 요청 시작 로깅
+    geminiDebugger.logRequestStart(prompt, 'from-api-call', imageBase64)
 
     // Base64에서 MIME 타입과 데이터 분리
     const matches = imageBase64.match(/^data:(.+);base64,(.+)$/)
@@ -34,31 +48,97 @@ export async function analyzeWithGemini(
     const mimeType = matches[1]
     const base64Data = matches[2]
 
-    // Gemini API 호출
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType,
-          data: base64Data,
-        },
+    geminiDebugger.logStep('Parsing image', `MIME: ${mimeType}, Data length: ${base64Data.length}`)
+
+    // API 설정 (공식 코드 기준)
+    const config = {
+      temperature: 0.95,
+      thinkingConfig: {
+        thinkingLevel: ThinkingLevel.HIGH,
       },
-      prompt,
-    ])
-
-    const response = await result.response
-    const text = response.text()
-
-    // JSON 추출 (```json ... ``` 형식 처리)
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[1])
+      mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
+      tools: [
+        {
+          googleSearch: {}
+        }
+      ],
     }
 
-    // 순수 JSON 응답 처리
-    return JSON.parse(text)
+    // ✅ API 설정 로깅
+    geminiDebugger.logAPIConfig(config)
+
+    // 콘텐츠 구조 생성
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          },
+          {
+            text: prompt,
+          },
+        ],
+      },
+    ]
+
+    geminiDebugger.logStep('Calling Gemini API', 'Model: gemini-3-pro-preview')
+
+    // Gemini API 호출
+    const response = await genAI.models.generateContentStream({
+      model: 'gemini-3-pro-preview',
+      config,
+      contents,
+    })
+
+    geminiDebugger.logStep('Receiving stream response')
+
+    // 스트림 응답 수집
+    let fullText = ''
+    let chunkCount = 0
+    for await (const chunk of response) {
+      if (chunk.text) {
+        chunkCount++
+        fullText += chunk.text
+        geminiDebugger.logStreamChunk(chunkCount, chunk.text)
+      }
+    }
+
+    geminiDebugger.logStep('Stream complete', `Total chunks: ${chunkCount}`)
+
+    // JSON 추출 (```json ... ``` 형식 처리)
+    const jsonMatch = fullText.match(/```json\s*([\s\S]*?)\s*```/)
+    let parsedResult
+
+    if (jsonMatch) {
+      geminiDebugger.logStep('Parsing JSON', 'Format: code block')
+      parsedResult = JSON.parse(jsonMatch[1])
+    } else {
+      geminiDebugger.logStep('Parsing JSON', 'Format: raw JSON')
+      parsedResult = JSON.parse(fullText)
+    }
+
+    // ✅ 응답 완료 로깅
+    geminiDebugger.logResponseComplete(fullText, parsedResult)
+
+    return parsedResult
+
   } catch (error) {
-    console.error(`[Phase ${phaseNumber}] Gemini API Error:`, error)
-    throw new Error(`Gemini API 호출 실패: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // ✅ 에러 로깅 (전체 컨텍스트 포함)
+    geminiDebugger.logError(
+      error instanceof Error ? error : new Error(String(error)),
+      prompt,
+      imageBase64
+    )
+
+    // 원본 에러 보존
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
   }
 }
 
@@ -78,8 +158,7 @@ export async function verifyWithGemini(
   }
 ): Promise<any> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' })
-
+    // Base64에서 MIME 타입과 데이터 분리
     const matches = imageBase64.match(/^data:(.+);base64,(.+)$/)
     if (!matches) {
       throw new Error('Invalid base64 image format')
@@ -95,28 +174,66 @@ export async function verifyWithGemini(
 ${JSON.stringify(previousResults, null, 2)}
 `
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType,
-          data: base64Data,
-        },
+    // API 설정 (공식 코드 기준)
+    const config = {
+      temperature: 0.95,
+      thinkingConfig: {
+        thinkingLevel: ThinkingLevel.HIGH,
       },
-      fullPrompt,
-    ])
+      mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
+      tools: [
+        {
+          googleSearch: {}
+        }
+      ],
+    }
 
-    const response = await result.response
-    const text = response.text()
+    // 콘텐츠 구조 생성
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          },
+          {
+            text: fullPrompt,
+          },
+        ],
+      },
+    ]
 
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+    // Gemini API 호출
+    const response = await genAI.models.generateContentStream({
+      model: 'gemini-3-pro-preview',
+      config,
+      contents,
+    })
+
+    // 스트림 응답 수집
+    let fullText = ''
+    for await (const chunk of response) {
+      if (chunk.text) {
+        fullText += chunk.text
+      }
+    }
+
+    const jsonMatch = fullText.match(/```json\s*([\s\S]*?)\s*```/)
     if (jsonMatch) {
       return JSON.parse(jsonMatch[1])
     }
 
-    return JSON.parse(text)
+    return JSON.parse(fullText)
   } catch (error) {
     console.error('[Phase 6] Gemini API Error:', error)
-    throw new Error(`Gemini API 호출 실패: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // 원본 에러 보존
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
   }
 }
 
@@ -136,27 +253,65 @@ export async function generateMasterJSON(
   }
 ): Promise<any> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' })
-
     const fullPrompt = `${prompt}
 
 ## Phase 1-6 결과:
 ${JSON.stringify(allResults, null, 2)}
 `
 
-    const result = await model.generateContent(fullPrompt)
-    const response = await result.response
-    const text = response.text()
+    // API 설정 (공식 코드 기준, 이미지 없으므로 mediaResolution 제외)
+    const config = {
+      temperature: 0.95,
+      thinkingConfig: {
+        thinkingLevel: ThinkingLevel.HIGH,
+      },
+      tools: [
+        {
+          googleSearch: {}
+        }
+      ],
+    }
 
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+    // 콘텐츠 구조 생성 (텍스트만 포함)
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: fullPrompt,
+          },
+        ],
+      },
+    ]
+
+    // Gemini API 호출
+    const response = await genAI.models.generateContentStream({
+      model: 'gemini-3-pro-preview',
+      config,
+      contents,
+    })
+
+    // 스트림 응답 수집
+    let fullText = ''
+    for await (const chunk of response) {
+      if (chunk.text) {
+        fullText += chunk.text
+      }
+    }
+
+    const jsonMatch = fullText.match(/```json\s*([\s\S]*?)\s*```/)
     if (jsonMatch) {
       return JSON.parse(jsonMatch[1])
     }
 
-    return JSON.parse(text)
+    return JSON.parse(fullText)
   } catch (error) {
     console.error('[Phase 7] Gemini API Error:', error)
-    throw new Error(`Gemini API 호출 실패: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // 원본 에러 보존
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
   }
 }
 
@@ -165,9 +320,42 @@ ${JSON.stringify(allResults, null, 2)}
  */
 export async function checkGeminiStatus(): Promise<boolean> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' })
-    const result = await model.generateContent('Hello')
-    await result.response
+    // API 설정
+    const config = {
+      temperature: 0.5,
+      tools: [
+        {
+          googleSearch: {}
+        }
+      ],
+    }
+
+    // 콘텐츠 구조 생성
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: 'Hello',
+          },
+        ],
+      },
+    ]
+
+    // Gemini API 호출
+    const response = await genAI.models.generateContentStream({
+      model: 'gemini-3-pro-preview',
+      config,
+      contents,
+    })
+
+    // 응답 확인
+    for await (const chunk of response) {
+      if (chunk.text) {
+        return true
+      }
+    }
+
     return true
   } catch (error) {
     console.error('Gemini API Status Check Failed:', error)

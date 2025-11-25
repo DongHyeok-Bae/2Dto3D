@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import ImageUploader from '@/components/upload/ImageUploader'
 import PhaseRunner from '@/components/pipeline/PhaseRunner'
 import ResultViewer from '@/components/results/ResultViewer'
+import StorageViewer from '@/components/admin/StorageViewer'
 import ViewerControls, { type ViewerOptions } from '@/components/viewer/ViewerControls'
 import ExportPanel from '@/components/export/ExportPanel'
 import ProjectManager from '@/components/export/ProjectManager'
@@ -21,7 +22,7 @@ export default function ServicePage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [imageMetadata, setImageMetadata] = useState<any>(null)
   const [isPreprocessing, setIsPreprocessing] = useState(false)
-  const [activeTab, setActiveTab] = useState<'upload' | 'pipeline' | 'results' | '3d'>('upload')
+  const [activeTab, setActiveTab] = useState<'upload' | 'pipeline' | 'results' | '3d' | 'storage'>('upload')
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [viewerOptions, setViewerOptions] = useState<ViewerOptions>({
     showSpaces: true,
@@ -169,6 +170,23 @@ export default function ServicePage() {
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-crimson" />
             )}
           </button>
+
+          <button
+            onClick={() => setActiveTab('storage')}
+            className={`
+              pb-3 px-1 font-medium transition-colors relative
+              ${
+                activeTab === 'storage'
+                  ? 'text-primary-crimson'
+                  : 'text-neutral-warmGray hover:text-primary-navy'
+              }
+            `}
+          >
+            5. 데이터 관리
+            {activeTab === 'storage' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-crimson" />
+            )}
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -222,6 +240,8 @@ export default function ServicePage() {
                 </div>
               </div>
             )}
+
+            {activeTab === 'storage' && <StorageViewer />}
           </div>
 
           {/* Right: Image Preview & Info / 3D Controls */}

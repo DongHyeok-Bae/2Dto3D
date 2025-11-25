@@ -6,13 +6,18 @@
 
 import { NextRequest } from 'next/server'
 import { analyzeWithGemini } from '@/lib/ai/gemini-client'
-import { validatePhaseResult } from '@/lib/validation/schemas'
+import { validatePhaseResultSafe } from '@/lib/validation/schemas'
 import { errorResponse, successResponse, ValidationError, GeminiError, PromptNotFoundError } from '@/lib/error/handlers'
 import { list } from '@vercel/blob'
-import { saveExecutionResult } from '@/lib/config/blob-storage'
+import { getLatestPrompt } from '@/lib/config/prompt-manager'
+import { saveExecutionResult } from '@/lib/config/result-manager'
+import { initializeLocalPrompts } from '@/lib/config/prompt-loader'
 
 export async function POST(request: NextRequest) {
   try {
+    // 로컬 프롬프트 자동 로드 (첫 호출 시에만 실행됨)
+    await initializeLocalPrompts()
+
     const body = await request.json()
     const { imageBase64, promptVersion, previousResults } = body
 
@@ -20,16 +25,15 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('이미지가 필요합니다.')
     }
 
-    // 프롬프트 가져오기
-    const { blobs } = await list({ prefix: 'prompts/phase5/' })
-    if (blobs.length === 0) {
+    // 프롬프트 가져오기 (환경 자동 감지)
+    const promptData = await getLatestPrompt(5, promptVersion)
+
+    if (!promptData) {
       throw new PromptNotFoundError(5)
     }
-    const latestBlob = blobs.sort((a, b) =>
-      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    )[0]
-    const response = await fetch(latestBlob.url)
-    let promptContent = await response.text()
+
+    let promptContent = promptData.content
+    const actualVersion = promptData.version
 
     // 이전 Phase 결과 추가
     if (previousResults) {
@@ -44,18 +48,19 @@ export async function POST(request: NextRequest) {
       throw new GeminiError(error instanceof Error ? error.message : 'Gemini API 호출 실패')
     }
 
-    // 결과 검증
-    const validation = validatePhaseResult(5, result)
-    if (!validation.valid) {
-      throw new ValidationError('Phase 5 결과 검증 실패', validation.errors)
-    }
+    // Safe Validation: 검증 실패해도 원본 데이터 저장
+    const validation = validatePhaseResultSafe(5, result)
 
-    // 실행 결과 저장
+    // 실행 결과 저장 (검증 실패해도 저장됨)
     const resultUrl = await saveExecutionResult(
       5,
-      promptVersion || 'latest',
-      validation.data,
-      { timestamp: new Date().toISOString() }
+      actualVersion,
+      validation.data, // 원본 또는 검증된 데이터
+      {
+        timestamp: new Date().toISOString(),
+        validated: validation.valid, // 검증 여부 메타데이터
+        validationErrors: validation.errors, // 검증 에러 (있으면)
+      }
     )
 
     return successResponse({
@@ -64,8 +69,10 @@ export async function POST(request: NextRequest) {
       result: validation.data,
       resultUrl,
       metadata: {
-        promptVersion: promptVersion || 'latest',
+        promptVersion: actualVersion,
         timestamp: new Date().toISOString(),
+        validated: validation.valid, // 검증 여부 표시
+        validationWarnings: validation.warning ? validation.errors : undefined,
       },
     })
   } catch (error) {

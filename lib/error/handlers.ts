@@ -38,23 +38,39 @@ export class PromptNotFoundError extends APIError {
  * Next.js API Route 에러 응답
  */
 export function errorResponse(error: unknown) {
+  // 개발 환경 여부 확인
+  const isDevelopment = process.env.NODE_ENV === 'development'
+
+  console.error('API Error:', error)
+
   if (error instanceof APIError) {
     return Response.json(
       {
         error: error.message,
         code: error.code,
         ...(error instanceof ValidationError && { errors: error.errors }),
+        // 개발 환경에서는 스택 트레이스 포함
+        ...(isDevelopment && { stack: error.stack, name: error.name }),
       },
       { status: error.statusCode }
     )
   }
 
-  // Unknown error
-  console.error('Unexpected error:', error)
+  // Unknown error - 개발 환경에서 더 많은 정보 제공
+  const message = error instanceof Error ? error.message : 'Internal server error'
+  const errorName = error instanceof Error ? error.name : 'Unknown'
+  const errorStack = error instanceof Error ? error.stack : undefined
+
   return Response.json(
     {
-      error: 'Internal server error',
+      error: message,
       code: 'INTERNAL_ERROR',
+      // 개발 환경에서는 상세 정보 포함
+      ...(isDevelopment && {
+        name: errorName,
+        stack: errorStack,
+        raw: String(error)
+      }),
     },
     { status: 500 }
   )
