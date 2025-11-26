@@ -14,8 +14,8 @@ export const metadata: Metadata = {
     default: '2Dto3D - AI 기반 건축 도면 3D BIM 변환 서비스',
     template: '%s | 2Dto3D'
   },
-  description: 'BIM-AutoConverter v3.0 - Google Gemini AI를 활용한 2D 건축 도면의 실시간 3D BIM 모델 변환 서비스. 경희대학교 건축학과와 함께하는 혁신적인 건축 설계 도구',
-  keywords: ['BIM', '3D 변환', '건축 도면', '2D to 3D', 'AI 건축', 'Google Gemini', '경희대학교', 'Three.js', 'WebGL', '건축 설계', 'CAD 변환', 'IFC', 'glTF'],
+  description: 'BIM-AutoConverter - AI를 활용한 2D 건축 도면의 실시간 3D BIM 모델 변환 서비스. (feat.경희대학교 건축공학과)',
+  keywords: ['BIM', '3D 변환', '건축 도면', '2D to 3D', '건축 도면 변환', 'AI 건축', '경희대학교', 'Three.js', 'WebGL', 'CAD 변환', 'IFC', 'glTF', '투디투쓰리디'],
   authors: [
     { name: '경희대학교 건축학과' },
     { name: '2Dto3D Team' }
@@ -32,6 +32,8 @@ export const metadata: Metadata = {
       { url: '/favicon.ico' },
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
       { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
@@ -50,7 +52,7 @@ export const metadata: Metadata = {
     url: '/',
     siteName: '2Dto3D - 경희대학교',
     title: '2Dto3D - AI 기반 건축 도면 3D BIM 변환 서비스',
-    description: 'Google Gemini AI를 활용하여 2D 건축 도면을 실시간으로 3D BIM 모델로 변환하는 혁신적인 웹 서비스',
+    description: 'AI를 활용하여 2D 건축 도면을 실시간으로 3D BIM 모델로 변환하는 혁신적인 웹 서비스',
     images: [
       {
         url: '/logo-crossover.png',

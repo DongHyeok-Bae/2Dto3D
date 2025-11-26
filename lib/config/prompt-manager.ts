@@ -6,6 +6,8 @@
 import { getStorageEnvironment, logStorageEnvironment } from './environment'
 import { promptStorage } from '@/lib/prompt-storage'
 import { list } from '@vercel/blob'
+import fs from 'fs/promises'
+import path from 'path'
 
 // Note: uploadPrompt는 현재 blob-storage.ts에 정의되어 있지 않을 수 있음
 // 필요 시 직접 구현하거나 기존 함수 사용
@@ -20,6 +22,22 @@ export interface PromptVersion {
   createdAt: string
   updatedAt: string
   url?: string  // Blob Storage URL (Vercel만)
+}
+
+/**
+ * 로컬 파일 시스템에서 프롬프트 읽기 (Fallback용)
+ * Blob Storage가 비어있거나 메모리에 프롬프트가 없을 때 사용
+ */
+async function readLocalPromptFile(phaseNumber: number): Promise<{ content: string; version: string } | null> {
+  try {
+    const filePath = path.join(process.cwd(), 'lib', 'ai', 'prompts', `phase${phaseNumber}.md`)
+    const content = await fs.readFile(filePath, 'utf-8')
+    console.log(`[PromptManager] Fallback to local file for Phase ${phaseNumber}`)
+    return { content, version: '1.0.0' }
+  } catch (error) {
+    console.warn(`[PromptManager] Failed to read local file fallback for Phase ${phaseNumber}:`, error)
+    return null
+  }
 }
 
 /**
@@ -126,7 +144,10 @@ export async function getLatestPrompt(
         console.log(`[PromptManager] Found: ${prompt ? 'YES ✅' : 'NO ❌'}`)
       }
 
-      return prompt ? { content: prompt.content, version: prompt.version } : null
+      if (!prompt) {
+        return await readLocalPromptFile(phaseNumber)
+      }
+      return { content: prompt.content, version: prompt.version }
     }
 
     // 최신 버전 조회
@@ -145,7 +166,10 @@ export async function getLatestPrompt(
       }
     }
 
-    return latestPrompt ? { content: latestPrompt.content, version: latestPrompt.version } : null
+    if (!latestPrompt) {
+      return await readLocalPromptFile(phaseNumber)
+    }
+    return { content: latestPrompt.content, version: latestPrompt.version }
 
   } else {
     // Vercel: Blob Storage
@@ -160,8 +184,8 @@ export async function getLatestPrompt(
       }
 
       if (blobs.length === 0) {
-        console.warn(`[PromptManager] Phase ${phaseNumber} v${specificVersion} not found in Blob Storage`)
-        return null
+        console.log(`[PromptManager] Phase ${phaseNumber} v${specificVersion} not in Blob. Trying local fallback...`)
+        return await readLocalPromptFile(phaseNumber)
       }
 
       const response = await fetch(blobs[0].url)
@@ -179,8 +203,8 @@ export async function getLatestPrompt(
     const { blobs } = await list({ prefix: `prompts/phase${phaseNumber}/` })
 
     if (blobs.length === 0) {
-      console.error(`[PromptManager] No prompts found for Phase ${phaseNumber} in Blob Storage`)
-      return null
+      console.log(`[PromptManager] No prompts in Blob for Phase ${phaseNumber}. Trying local fallback...`)
+      return await readLocalPromptFile(phaseNumber)
     }
 
     // 최신 버전 정렬
