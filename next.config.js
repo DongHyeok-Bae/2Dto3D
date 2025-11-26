@@ -19,7 +19,7 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
-    optimizeCss: true,
+    // optimizeCss: true, // critters 의존성 문제로 비활성화
     optimizePackageImports: [
       '@react-three/fiber',
       '@react-three/drei',

@@ -22,10 +22,10 @@ export function exportWallsAsCSV(walls: Phase2Result['walls']) {
   const rows = walls.map(wall => [
     wall.id,
     wall.type,
-    wall.start.x,
-    wall.start.y,
-    wall.end.x,
-    wall.end.y,
+    wall.geometry.start.x,
+    wall.geometry.start.y,
+    wall.geometry.end.x,
+    wall.geometry.end.y,
     wall.thickness || 0.15,
     wall.height || 2.7,
   ])
@@ -43,13 +43,12 @@ export function exportWallsAsCSV(walls: Phase2Result['walls']) {
  * CSV 내보내기 - 공간 데이터
  */
 export function exportSpacesAsCSV(spaces: Phase4Result['spaces']) {
-  const headers = ['ID', 'Name', 'Type', 'Area (m²)', 'Occupancy Type']
+  const headers = ['ID', 'Type', 'Pixel Area', 'Inference Reason']
   const rows = spaces.map(space => [
     space.id,
-    space.name || 'Unnamed',
-    space.type,
-    space.characteristics?.area?.value || 0,
-    space.characteristics?.occupancy?.type || 'unknown',
+    space.typeInferred,
+    space.pixelArea,
+    space.inferenceReason,
   ])
 
   const csv = [
@@ -65,15 +64,14 @@ export function exportSpacesAsCSV(spaces: Phase4Result['spaces']) {
  * CSV 내보내기 - 문 데이터
  */
 export function exportDoorsAsCSV(doors: Phase3Result['doors']) {
-  const headers = ['ID', 'Type', 'Width (m)', 'Height (m)', 'Position X', 'Position Y', 'Orientation']
+  const headers = ['ID', 'Break Start X', 'Break Start Y', 'Break End X', 'Break End Y', 'Detection Method']
   const rows = doors.map(door => [
     door.id,
-    door.type,
-    door.dimensions.width,
-    door.dimensions.height,
-    door.position.x,
-    door.position.y,
-    door.orientation || 'horizontal',
+    door.position.breakStart.x,
+    door.position.breakStart.y,
+    door.position.breakEnd.x,
+    door.position.breakEnd.y,
+    door.detectionMethod,
   ])
 
   const csv = [
@@ -89,15 +87,14 @@ export function exportDoorsAsCSV(doors: Phase3Result['doors']) {
  * CSV 내보내기 - 창문 데이터
  */
 export function exportWindowsAsCSV(windows: Phase3Result['windows']) {
-  const headers = ['ID', 'Type', 'Width (m)', 'Height (m)', 'Sill Height (m)', 'Position X', 'Position Y']
+  const headers = ['ID', 'Break Start X', 'Break Start Y', 'Break End X', 'Break End Y', 'Detection Method']
   const rows = windows.map(window => [
     window.id,
-    window.type,
-    window.dimensions.width,
-    window.dimensions.height,
-    window.sillHeight || 0.9,
-    window.position.x,
-    window.position.y,
+    window.position.breakStart.x,
+    window.position.breakStart.y,
+    window.position.breakEnd.x,
+    window.position.breakEnd.y,
+    window.detectionMethod,
   ])
 
   const csv = [
@@ -119,34 +116,37 @@ export function exportAsIFCLike(masterJSON: MasterJSON) {
 
   // Project Info
   ifc += '## PROJECT INFORMATION\n'
-  ifc += `Project Name: ${masterJSON.metadata?.projectId || 'Unnamed Project'}\n`
-  ifc += `Total Area: ${masterJSON.metadata?.totalArea || 0} m²\n`
-  ifc += `Floors: ${masterJSON.metadata?.floors || 1}\n\n`
+  ifc += `Source Type: ${masterJSON.metadata?.sourceType || 'Unknown'}\n`
+  ifc += `Extraction Method: ${masterJSON.metadata?.extractionMethod || 'Unknown'}\n`
+  ifc += `Scale Confidence: ${masterJSON.metadata?.scaleConfidence || 0}\n`
+  ifc += `Floors: ${masterJSON.levels?.length || 1}\n\n`
 
-  // Coordinate System
-  ifc += '## COORDINATE SYSTEM\n'
-  if (masterJSON.coordinateSystem) {
-    ifc += `Origin: (${masterJSON.coordinateSystem.origin.x}, ${masterJSON.coordinateSystem.origin.y})\n`
-    ifc += `Scale: ${masterJSON.coordinateSystem.scale.pixelsPerMeter} pixels/meter\n\n`
+  // Levels
+  ifc += '## LEVELS\n'
+  if (masterJSON.levels) {
+    masterJSON.levels.forEach(level => {
+      ifc += `LEVEL: ${level.levelName}, Elevation=${level.elevation}\n`
+    })
+    ifc += '\n'
   }
 
   // Building Elements
   ifc += '## BUILDING ELEMENTS\n\n'
 
   // Walls
-  if (masterJSON.structuralElements?.walls) {
-    ifc += `### WALLS (${masterJSON.structuralElements.walls.length} elements)\n`
-    masterJSON.structuralElements.walls.forEach(wall => {
-      ifc += `WALL ${wall.id}: Type=${wall.type}, Start=(${wall.start.x}, ${wall.start.y}), End=(${wall.end.x}, ${wall.end.y})\n`
+  if (masterJSON.components?.walls) {
+    ifc += `### WALLS (${masterJSON.components.walls.length} elements)\n`
+    masterJSON.components.walls.forEach(wall => {
+      ifc += `WALL ${wall.id}: Level=${wall.level}, Start=(${wall.start.x}, ${wall.start.y}), End=(${wall.end.x}, ${wall.end.y}), Height=${wall.height}, Thickness=${wall.thickness}\n`
     })
     ifc += '\n'
   }
 
   // Spaces
-  if (masterJSON.spaces) {
-    ifc += `### SPACES (${masterJSON.spaces.length} elements)\n`
-    masterJSON.spaces.forEach(space => {
-      ifc += `SPACE ${space.id}: Name="${space.name || 'Unnamed'}", Type=${space.type}, Area=${space.characteristics?.area?.value || 0}m²\n`
+  if (masterJSON.components?.spaces) {
+    ifc += `### SPACES (${masterJSON.components.spaces.length} elements)\n`
+    masterJSON.components.spaces.forEach(space => {
+      ifc += `SPACE ${space.id}: Type="${space.typeInferred}"\n`
     })
     ifc += '\n'
   }

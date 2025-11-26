@@ -89,9 +89,9 @@ export function exportAsSTL(
 
   let blob: Blob
   if (binary) {
-    blob = new Blob([result as ArrayBuffer], { type: 'application/octet-stream' })
+    blob = new Blob([result as unknown as ArrayBuffer], { type: 'application/octet-stream' })
   } else {
-    blob = new Blob([result as string], { type: 'text/plain' })
+    blob = new Blob([result as unknown as string], { type: 'text/plain' })
   }
 
   downloadFile(blob, `model_${Date.now()}.stl`)
@@ -199,8 +199,8 @@ export function exportAsColladaSimple(masterJSON: MasterJSON): void {
   // Library Geometries (simplified)
   dae += '  <library_geometries>\n'
 
-  if (masterJSON.structuralElements?.walls) {
-    masterJSON.structuralElements.walls.forEach((wall, index) => {
+  if (masterJSON.components?.walls) {
+    masterJSON.components.walls.forEach((wall, index) => {
       dae += `    <geometry id="wall_${index}" name="Wall_${wall.id}">\n`
       dae += '      <!-- Wall geometry data would go here -->\n'
       dae += '    </geometry>\n'
@@ -213,8 +213,8 @@ export function exportAsColladaSimple(masterJSON: MasterJSON): void {
   dae += '  <library_visual_scenes>\n'
   dae += '    <visual_scene id="Scene" name="Scene">\n'
 
-  if (masterJSON.structuralElements?.walls) {
-    masterJSON.structuralElements.walls.forEach((wall, index) => {
+  if (masterJSON.components?.walls) {
+    masterJSON.components.walls.forEach((wall, index) => {
       dae += `      <node id="Wall_${index}" name="Wall_${wall.id}">\n`
       dae += `        <translate>${wall.start.x} 0 ${wall.start.y}</translate>\n`
       dae += `        <instance_geometry url="#wall_${index}"/>\n`

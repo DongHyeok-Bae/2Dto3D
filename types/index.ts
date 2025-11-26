@@ -16,17 +16,31 @@ export interface Phase1Result {
 }
 
 export interface Phase2Result {
-  envelope: {
-    boundary: Array<{ x: number; y: number }>
-    shape: 'rectangle' | 'L-shape' | 'U-shape' | 'complex'
-  }
-  primaryWalls: Array<{
+  walls: Array<{
     id: string
-    centerline: {
+    type: 'exterior' | 'interior' | 'loadBearing' | 'partition'
+    geometry: {
       start: { x: number; y: number }
       end: { x: number; y: number }
     }
+    thickness: number
+    height?: number
+    material?: string
   }>
+  columns?: Array<{
+    id: string
+    position: { x: number; y: number }
+    shape: 'rectangular' | 'circular' | 'H-beam' | 'I-beam'
+    dimensions: {
+      width: number
+      depth?: number
+    }
+  }>
+  metadata: {
+    totalWalls: number
+    totalColumns?: number
+    confidence: number
+  }
 }
 
 export interface Phase3Result {

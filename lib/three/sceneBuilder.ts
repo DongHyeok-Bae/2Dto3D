@@ -67,11 +67,12 @@ export function buildSceneFromMasterJSON(
   const walls = createWalls(masterJSON, defaultHeight, wireframe)
   walls.forEach(wall => group.add(wall))
 
-  // 3. 기둥 추가
-  if (masterJSON.building.columns) {
-    const columns = createColumns(masterJSON, defaultHeight, wireframe)
-    columns.forEach(column => group.add(column))
-  }
+  // 3. 기둥 추가 (MasterJSON에서 columns 지원 시)
+  // Note: 현재 MasterJSON 타입에 columns가 없으므로 주석 처리
+  // if (masterJSON.components.columns) {
+  //   const columns = createColumns(masterJSON, defaultHeight, wireframe)
+  //   columns.forEach(column => group.add(column))
+  // }
 
   // 4. 문 추가
   const doors = createDoors(masterJSON, defaultHeight, wireframe)
@@ -97,7 +98,17 @@ export function buildSceneFromMasterJSON(
  * 바닥 생성
  */
 function createFloor(masterJSON: MasterJSON): THREE.Mesh | null {
-  const { totalArea } = masterJSON.dimensions
+  // 벽 데이터에서 대략적인 면적 계산
+  const walls = masterJSON.components?.walls || []
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  walls.forEach((wall: any) => {
+    const { start, end } = wall
+    minX = Math.min(minX, start.x, end.x)
+    maxX = Math.max(maxX, start.x, end.x)
+    minY = Math.min(minY, start.y, end.y)
+    maxY = Math.max(maxY, start.y, end.y)
+  })
+  const totalArea = walls.length > 0 ? (maxX - minX) * (maxY - minY) : 100
 
   // 대략적인 바닥 크기 계산
   const size = Math.sqrt(totalArea) * 1.5
@@ -129,9 +140,9 @@ function createWalls(
 ): THREE.Mesh[] {
   const walls: THREE.Mesh[] = []
 
-  masterJSON.building.walls.forEach((wall: any) => {
-    const { geometry, thickness, type } = wall
-    const { start, end } = geometry
+  masterJSON.components.walls.forEach((wall: any) => {
+    const { start, end, thickness } = wall
+    const type = 'exterior' // MasterJSON walls에 type 없음, 기본값 사용
 
     // 벽 길이 및 방향 계산
     const dx = end.x - start.x
@@ -169,44 +180,15 @@ function createWalls(
 
 /**
  * 기둥 생성
+ * Note: 현재 MasterJSON 타입에 columns가 없으므로 빈 배열 반환
  */
 function createColumns(
-  masterJSON: MasterJSON,
-  defaultHeight: number,
-  wireframe: boolean
+  _masterJSON: MasterJSON,
+  _defaultHeight: number,
+  _wireframe: boolean
 ): THREE.Mesh[] {
-  const columns: THREE.Mesh[] = []
-
-  masterJSON.building.columns?.forEach((column: any) => {
-    const { position, shape, dimensions } = column
-    const { width, depth } = dimensions
-
-    let geometry: THREE.BufferGeometry
-
-    if (shape === 'circular') {
-      geometry = new THREE.CylinderGeometry(width / 2, width / 2, defaultHeight, 16)
-    } else {
-      // rectangular, H-beam, I-beam 등
-      geometry = new THREE.BoxGeometry(width, defaultHeight, depth || width)
-    }
-
-    const material = new THREE.MeshStandardMaterial({
-      color: COLORS.column,
-      wireframe,
-    })
-
-    const mesh = new THREE.Mesh(geometry, material)
-    mesh.position.set(position.x, defaultHeight / 2, position.y)
-
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    mesh.userData = { type: 'column', id: column.id, data: column }
-    mesh.name = `Column-${column.id}`
-
-    columns.push(mesh)
-  })
-
-  return columns
+  // MasterJSON.components에 columns가 없으므로 빈 배열 반환
+  return []
 }
 
 /**
@@ -219,7 +201,7 @@ function createDoors(
 ): THREE.Mesh[] {
   const doors: THREE.Mesh[] = []
 
-  masterJSON.building.doors.forEach((door: any) => {
+  masterJSON.components.openings.doors.forEach((door: any) => {
     const { position, width, height } = door
 
     const geometry = new THREE.BoxGeometry(width, height, 0.05)
@@ -251,7 +233,7 @@ function createWindows(
 ): THREE.Mesh[] {
   const windows: THREE.Mesh[] = []
 
-  masterJSON.building.windows.forEach((window: any) => {
+  masterJSON.components.openings.windows.forEach((window: any) => {
     const { position, width, height, sillHeight } = window
 
     const geometry = new THREE.BoxGeometry(width, height, 0.03)
@@ -282,7 +264,7 @@ function createWindows(
 function createSpaces(masterJSON: MasterJSON, wireframe: boolean): THREE.Mesh[] {
   const spaces: THREE.Mesh[] = []
 
-  masterJSON.building.spaces.forEach((space: any) => {
+  masterJSON.components.spaces.forEach((space: any) => {
     const { boundary, type } = space
 
     // Shape 생성

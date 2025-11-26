@@ -62,8 +62,8 @@ export default function ExportPanel({ masterJSON, onClose }: ExportPanelProps) {
         case 'csv':
           switch (csvType) {
             case 'walls':
-              if (results.phase2?.primaryWalls) {
-                exportWallsAsCSV(results.phase2.primaryWalls as any)
+              if (results.phase2?.walls) {
+                exportWallsAsCSV(results.phase2.walls)
               }
               break
             case 'spaces':

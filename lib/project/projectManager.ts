@@ -4,8 +4,7 @@
  */
 
 import { put, list, del, head } from '@vercel/blob'
-import type { MasterJSON } from '@/types'
-import type { PipelineResults } from '@/store/pipelineStore'
+import type { MasterJSON, PipelineState } from '@/types'
 
 /**
  * 프로젝트 데이터 인터페이스
@@ -17,7 +16,7 @@ export interface ProjectData {
   createdAt: string
   updatedAt: string
   image: string | null
-  results: PipelineResults
+  results: PipelineState['results']
   metadata: {
     tool: string
     organization: string
