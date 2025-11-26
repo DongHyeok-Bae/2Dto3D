@@ -4,6 +4,10 @@
  * 최종 BIM JSON 생성
  */
 
+// Vercel Serverless Function 타임아웃 설정
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 import { NextRequest } from 'next/server'
 import { generateMasterJSON } from '@/lib/ai/gemini-client'
 import { validatePhaseResult } from '@/lib/validation/schemas'

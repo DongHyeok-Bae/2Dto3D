@@ -4,6 +4,10 @@
  * 공간 분석 및 분류
  */
 
+// Vercel Serverless Function 타임아웃 설정
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 import { NextRequest } from 'next/server'
 import { analyzeWithGemini } from '@/lib/ai/gemini-client'
 import { validatePhaseResultSafe } from '@/lib/validation/schemas'
