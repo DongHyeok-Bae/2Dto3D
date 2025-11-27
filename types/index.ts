@@ -1,3 +1,6 @@
+// MasterJSON 타입을 schemas.ts에서 가져옴
+import type { MasterJSON } from '@/lib/validation/schemas'
+
 // ===== Phase별 결과 타입 =====
 
 export interface Phase1Result {
@@ -112,53 +115,8 @@ export interface Phase5Result {
 
 // Phase6Result 삭제됨 - Phase 6은 이제 MasterJSON을 출력 (기존 Phase 7의 역할)
 
-export interface MasterJSON {
-  metadata: {
-    sourceType: string
-    extractionMethod: string
-    scaleConfidence: number
-  }
-  levels: Array<{
-    levelName: string
-    elevation: number
-  }>
-  components: {
-    slabs: Array<{
-      id: string
-      level: string
-      footprint: Array<{ x: number; y: number; z: number }>
-      thickness: number
-    }>
-    walls: Array<{
-      id: string
-      level: string
-      start: { x: number; y: number; z: number }
-      end: { x: number; y: number; z: number }
-      height: number
-      thickness: number
-    }>
-    openings: {
-      doors: Array<{
-        id: string
-        position: { x: number; y: number; z: number }
-        width: number
-        height: number
-      }>
-      windows: Array<{
-        id: string
-        position: { x: number; y: number; z: number }
-        width: number
-        height: number
-        sillHeight: number
-      }>
-    }
-    spaces: Array<{
-      id: string
-      typeInferred: string
-      boundary_mm: Array<{ x: number; y: number; z: number }>
-    }>
-  }
-}
+// MasterJSON은 schemas.ts에서 Zod 스키마로부터 추론 (상단에서 import됨)
+export type { MasterJSON }
 
 // ===== 프롬프트 관리 타입 =====
 

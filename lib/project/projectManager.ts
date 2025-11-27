@@ -242,7 +242,7 @@ export function compareProjectVersions(
   }
 
   // Phase 결과 비교
-  const phases = ['phase1', 'phase2', 'phase3', 'phase4', 'phase5', 'phase6', 'phase7'] as const
+  const phases = ['phase1', 'phase2', 'phase3', 'phase4', 'phase5', 'phase6'] as const
 
   for (const phase of phases) {
     const has1 = phase in project1.results

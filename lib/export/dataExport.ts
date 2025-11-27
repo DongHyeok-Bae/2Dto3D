@@ -146,7 +146,7 @@ export function exportAsIFCLike(masterJSON: MasterJSON) {
   if (masterJSON.components?.spaces) {
     ifc += `### SPACES (${masterJSON.components.spaces.length} elements)\n`
     masterJSON.components.spaces.forEach(space => {
-      ifc += `SPACE ${space.id}: Type="${space.typeInferred}"\n`
+      ifc += `SPACE ${space.id}: Type="${space.type}"\n`
     })
     ifc += '\n'
   }
@@ -166,8 +166,7 @@ export function exportProject(
     phase3?: Phase3Result
     phase4?: Phase4Result
     phase5?: Phase5Result
-    phase6?: any
-    phase7?: MasterJSON
+    phase6?: MasterJSON
   }
 ) {
   const projectData = {

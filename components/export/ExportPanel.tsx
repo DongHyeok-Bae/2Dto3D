@@ -36,7 +36,7 @@ export default function ExportPanel({ masterJSON, onClose }: ExportPanelProps) {
   const { uploadedImage, results } = usePipelineStore()
 
   const handleExport = async () => {
-    if (!masterJSON && !results.phase7) {
+    if (!masterJSON && !results.phase6) {
       setExportStatus({
         type: 'error',
         message: '내보낼 데이터가 없습니다.',
@@ -47,7 +47,7 @@ export default function ExportPanel({ masterJSON, onClose }: ExportPanelProps) {
     setIsExporting(true)
     setExportStatus(null)
 
-    const data = masterJSON || results.phase7
+    const data = masterJSON || results.phase6
 
     try {
       switch (selectedFormat) {

@@ -229,7 +229,7 @@ export default function ServicePage() {
                 </h2>
                 <div className="h-[600px] rounded-lg overflow-hidden bg-neutral-marble">
                   <Viewer3D
-                    masterJSON={results.phase7 ?? null}
+                    masterJSON={results.phase6 ?? null}
                     showSpaces={viewerOptions.showSpaces}
                     showFloor={viewerOptions.showFloor}
                     showGrid={viewerOptions.showGrid}
@@ -250,7 +250,7 @@ export default function ServicePage() {
             {showExportPanel && (
               <div className="card mb-4">
                 <ExportPanel
-                  masterJSON={results.phase7}
+                  masterJSON={results.phase6}
                   onClose={() => setShowExportPanel(false)}
                 />
               </div>

@@ -173,35 +173,87 @@ export type Phase5Result = z.infer<typeof phase5Schema>
 // Phase 6 (Human-in-the-loop Validation) 삭제됨
 // Phase 7 (Master JSON Assembly)가 Phase 6으로 승격됨
 
+// 3D 좌표 스키마 (mm 단위)
+const point3DSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+})
+
+// 메타데이터 스키마
+const phase6MetadataSchema = z.object({
+  sourceType: z.string(),
+  extractionMethod: z.string(),
+  scaleConfidence: z.number(),
+})
+
+// 레벨 스키마
+const levelSchema = z.object({
+  levelName: z.string(),
+  elevation: z.number(),
+})
+
+// 슬라브 스키마
+const slabSchema = z.object({
+  id: z.string(),
+  level: z.string(),
+  footprint: z.array(point3DSchema),
+  thickness: z.number(),
+})
+
+// 벽 스키마
+const phase6WallSchema = z.object({
+  id: z.string(),
+  level: z.string(),
+  start: point3DSchema,
+  end: point3DSchema,
+  height: z.number(),
+  thickness: z.number(),
+})
+
+// 문 스키마
+const phase6DoorSchema = z.object({
+  id: z.string(),
+  position: point3DSchema,
+  width: z.number(),
+  height: z.number(),
+})
+
+// 창문 스키마
+const phase6WindowSchema = z.object({
+  id: z.string(),
+  position: point3DSchema,
+  width: z.number(),
+  height: z.number(),
+  sillHeight: z.number(),
+})
+
+// 개구부 스키마
+const phase6OpeningsSchema = z.object({
+  doors: z.array(phase6DoorSchema),
+  windows: z.array(phase6WindowSchema),
+})
+
+// 공간 스키마 (필드명 통일: boundary, type)
+const phase6SpaceSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  boundary: z.array(point3DSchema),
+})
+
+// 컴포넌트 스키마
+const componentsSchema = z.object({
+  slabs: z.array(slabSchema),
+  walls: z.array(phase6WallSchema),
+  openings: phase6OpeningsSchema,
+  spaces: z.array(phase6SpaceSchema),
+})
+
+// Phase 6 전체 스키마 (Master JSON)
 export const phase6Schema = z.object({
-  metadata: z.object({
-    projectName: z.string().optional(),
-    version: z.string(),
-    createdAt: z.string(),
-    unit: z.string(),
-    floorLevel: z.string().optional(),
-  }),
-  coordinateSystem: z.object({
-    origin: z.object({ x: z.number(), y: z.number() }),
-    scale: z.number(),
-    rotation: z.number(),
-  }),
-  building: z.object({
-    walls: z.array(z.any()),
-    columns: z.array(z.any()).optional(),
-    doors: z.array(z.any()),
-    windows: z.array(z.any()),
-    spaces: z.array(z.any()),
-  }),
-  dimensions: z.object({
-    totalArea: z.number(),
-    totalVolume: z.number().optional(),
-    wallLength: z.number(),
-  }),
-  verification: z.object({
-    confidence: z.number(),
-    issues: z.array(z.any()),
-  }),
+  metadata: phase6MetadataSchema,
+  levels: z.array(levelSchema),
+  components: componentsSchema,
 })
 
 export type Phase6Result = z.infer<typeof phase6Schema>
