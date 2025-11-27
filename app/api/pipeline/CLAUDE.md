@@ -2,9 +2,10 @@
 
 **생성일**: 2024-11-22
 **Phase**: 3 - AI 파이프라인 구현
+**최종 수정**: 2024-11-27 (6단계 파이프라인 축소)
 
 ## 📌 목적
-Phase 1-7 AI 분석 API 제공
+Phase 1-6 AI 분석 API 제공
 
 ## 📁 폴더 구조
 
@@ -20,10 +21,8 @@ app/api/pipeline/
 │   └── route.ts      # Spaces (공간 분석)
 ├── phase5/
 │   └── route.ts      # Dimensions (치수 계산)
-├── phase6/
-│   └── route.ts      # Confidence (신뢰도 검증)
-└── phase7/
-    └── route.ts      # Master JSON (최종 합성)
+└── phase6/
+    └── route.ts      # Master JSON (최종 BIM JSON 생성)
 ```
 
 ## 🎯 API 공통 사항
@@ -69,26 +68,10 @@ app/api/pipeline/
 - Schema 검증
 - 결과 저장
 
-### Phase 6: Human-in-the-Loop
-- POST: 신뢰도 검증
-- PUT: 사용자 피드백 제출
-
-**PUT Request:**
-```typescript
-{
-  phase6Result: any
-  userFeedback: {
-    approved: boolean
-    comments?: string
-    corrections?: any
-  }
-}
-```
-
-### Phase 7: Master JSON 생성
+### Phase 6: Master JSON 생성
 - POST 메서드
-- Phase 1-6 결과 종합
-- 최종 BIM JSON 생성
+- Phase 1-5 결과 종합
+- 최종 BIM JSON 생성 (이미지 불필요)
 
 **Request Body:**
 ```typescript
@@ -100,7 +83,6 @@ app/api/pipeline/
     phase3: any
     phase4: any
     phase5: any
-    phase6: any
   }
 }
 ```
@@ -109,7 +91,7 @@ app/api/pipeline/
 
 1. **입력 검증**: 필수 파라미터 확인
 2. **프롬프트 로드**: Blob Storage에서 활성 프롬프트 가져오기
-3. **Gemini API 호출**: 이미지 + 프롬프트 분석
+3. **Gemini API 호출**: 이미지 + 프롬프트 분석 (Phase 1-5) 또는 결과 종합 (Phase 6)
 4. **Schema 검증**: Zod로 응답 검증
 5. **결과 저장**: Blob Storage에 저장
 6. **응답 반환**: 검증된 결과 + 메타데이터
@@ -129,6 +111,21 @@ const response = await fetch('/api/pipeline/phase1', {
 
 const data = await response.json()
 console.log('Phase 1 결과:', data.result)
+
+// Phase 6 호출 (Master JSON)
+const phase6Response = await fetch('/api/pipeline/phase6', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    allResults: {
+      phase1: {...},
+      phase2: {...},
+      phase3: {...},
+      phase4: {...},
+      phase5: {...},
+    },
+  }),
+})
 ```
 
 ## 📋 다음 작업

@@ -110,33 +110,7 @@ export interface Phase5Result {
   }
 }
 
-export interface Phase6Result {
-  confidence: {
-    overall: number
-    dimensions: {
-      score: number
-      justification: string
-    }
-    spaces: {
-      score: number
-      justification: string
-    }
-    structure: {
-      score: number
-      justification: string
-    }
-  }
-  interactiveCorrections: Array<{
-    type: 'dimension_conflict' | 'room_type' | 'scale_validation'
-    featureId: string
-    question: string
-    options?: Array<{
-      label: string
-      value: any
-    }>
-    currentValue?: any
-  }>
-}
+// Phase6Result 삭제됨 - Phase 6은 이제 MasterJSON을 출력 (기존 Phase 7의 역할)
 
 export interface MasterJSON {
   metadata: {
@@ -190,7 +164,7 @@ export interface MasterJSON {
 
 export interface PromptVersion {
   id: string
-  phaseNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7
+  phaseNumber: 1 | 2 | 3 | 4 | 5 | 6
   version: string
   content: string
   schema: object
@@ -230,8 +204,7 @@ export interface PipelineState {
     phase3?: Phase3Result
     phase4?: Phase4Result
     phase5?: Phase5Result
-    phase6?: Phase6Result
-    phase7?: MasterJSON
+    phase6?: MasterJSON // Phase 6 = Master JSON Assembly (기존 Phase 7)
   }
   uploadedImage: string | null
   setCurrentPhase: (phase: number) => void

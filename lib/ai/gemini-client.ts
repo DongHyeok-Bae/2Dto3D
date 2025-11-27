@@ -1,24 +1,40 @@
 /**
  * Google Gemini API Client
  *
- * Phase 1-7 파이프라인에서 사용되는 Gemini AI 호출 유틸리티
+ * Phase 1-6 파이프라인에서 사용되는 Gemini AI 호출 유틸리티
  *
  * ┌─────────────────────────────────────────────────────────────────┐
  * │ 이 파일의 역할:                                                   │
  * │ - 2D 건축 도면 이미지를 Gemini AI에 전송                          │
  * │ - AI가 분석한 결과(JSON)를 받아서 반환                            │
- * │ - Phase 1~7 각각의 분석 요청을 처리                               │
+ * │ - Phase 1~6 각각의 분석 요청을 처리                               │
  * └─────────────────────────────────────────────────────────────────┘
  *
  * 주요 함수:
  * - analyzeWithGemini(): Phase 1-5용 (이미지 + 프롬프트 → JSON)
- * - verifyWithGemini(): Phase 6용 (이미지 + 이전 결과 검증)
- * - generateMasterJSON(): Phase 7용 (텍스트만, 최종 BIM JSON 생성)
+ * - executePhase6(): Phase 6용 (텍스트만, 최종 BIM JSON 생성)
  * - checkGeminiStatus(): API 상태 확인
  */
 
 import { GoogleGenAI, MediaResolution, ThinkingLevel } from '@google/genai'
 import { GeminiDebugger } from './gemini-debugger'
+import type {
+  Phase1Input,
+  Phase2Input,
+  Phase3Input,
+  Phase4Input,
+  Phase5Input,
+  Phase6Input,
+  AIContextInfo,
+} from './types/phase-handlers'
+import type {
+  Phase1Result,
+  Phase2Result,
+  Phase3Result,
+  Phase4Result,
+  Phase5Result,
+  MasterJSON,
+} from '@/types'
 
 // ============================================================================
 // API 키 설정
@@ -41,10 +57,425 @@ const genAI = new GoogleGenAI({
 })
 
 // ============================================================================
+// 내부 유틸리티 함수
+// ============================================================================
+
+/**
+ * Base64 이미지 파싱
+ * @returns { mimeType, base64Data } 또는 에러
+ */
+function parseBase64Image(imageBase64: string): { mimeType: string; base64Data: string } {
+  const matches = imageBase64.match(/^data:(.+);base64,(.+)$/)
+  if (!matches) {
+    throw new Error('Invalid base64 image format')
+  }
+  return {
+    mimeType: matches[1],
+    base64Data: matches[2],
+  }
+}
+
+/**
+ * Gemini API 설정 생성
+ */
+function createGeminiConfig(prompt: string) {
+  return {
+    temperature: 0.95,
+    thinkingConfig: {
+      thinkingLevel: ThinkingLevel.HIGH,
+    },
+    mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
+    systemInstruction: [{ text: prompt }],
+  }
+}
+
+/**
+ * Gemini 스트리밍 호출 및 JSON 파싱
+ */
+async function executeGeminiCall(config: any, contents: any[]): Promise<any> {
+  const response = await genAI.models.generateContentStream({
+    model: 'gemini-3-pro-preview',
+    config,
+    contents,
+  })
+
+  let fullText = ''
+  for await (const chunk of response) {
+    if (chunk.text) {
+      fullText += chunk.text
+    }
+  }
+
+  const jsonMatch = fullText.match(/```json\s*([\s\S]*?)\s*```/)
+  if (jsonMatch) {
+    return JSON.parse(jsonMatch[1])
+  }
+  return JSON.parse(fullText)
+}
+
+/**
+ * 이전 Phase 결과를 User Message용 텍스트로 포맷팅
+ */
+function formatPreviousResultsForUserMessage(results: Record<string, any>): string {
+  return JSON.stringify(results, null, 2)
+}
+
+// ============================================================================
+// Phase별 전용 핸들러 함수 (executePhase1 ~ executePhase7)
+// ============================================================================
+
+/**
+ * Phase 1: 좌표계 정규화
+ * - 의존성: 없음
+ * - 입력: 이미지 + 프롬프트
+ * - 출력: Phase1Result
+ */
+export async function executePhase1(input: Phase1Input): Promise<Phase1Result> {
+  const geminiDebugger = new GeminiDebugger(1)
+
+  try {
+    const { mimeType, base64Data } = parseBase64Image(input.imageBase64)
+    const config = createGeminiConfig(input.prompt)
+
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          },
+          {
+            text: '위 건축 도면 이미지를 분석하여 시스템 지시에 따라 JSON을 생성해주세요.',
+          },
+        ],
+      },
+    ]
+
+    // 컨텍스트 정보 (Phase 1은 이전 결과 없음)
+    const contextInfo: AIContextInfo = {
+      userMessagePhases: [],
+      hasImage: true,
+    }
+
+    geminiDebugger.logRequestWithContext(config, contents, contextInfo)
+
+    const startTime = Date.now()
+    const result = await executeGeminiCall(config, contents)
+
+    geminiDebugger.logResponse(result, Date.now() - startTime)
+
+    return result as Phase1Result
+  } catch (error) {
+    console.error('[Phase 1] Gemini API Error:', error)
+    if (error instanceof Error) throw error
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
+  }
+}
+
+/**
+ * Phase 2: 구조 요소 추출
+ * - 의존성: Phase 1
+ * - 입력: 이미지 + 프롬프트 + Phase1Result
+ * - 출력: Phase2Result
+ */
+export async function executePhase2(input: Phase2Input): Promise<Phase2Result> {
+  const geminiDebugger = new GeminiDebugger(2)
+
+  try {
+    const { mimeType, base64Data } = parseBase64Image(input.imageBase64)
+    const config = createGeminiConfig(input.prompt)
+
+    // Phase 1 결과를 User Message에 포함
+    const previousResultsText = formatPreviousResultsForUserMessage({
+      phase1: input.phase1Result,
+    })
+
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          },
+          {
+            text: `## 이전 Phase 결과:\n${previousResultsText}`,
+          },
+          {
+            text: '위 건축 도면 이미지와 이전 Phase 결과를 참고하여 시스템 지시에 따라 JSON을 생성해주세요.',
+          },
+        ],
+      },
+    ]
+
+    const contextInfo: AIContextInfo = {
+      userMessagePhases: [1],
+      hasImage: true,
+    }
+
+    geminiDebugger.logRequestWithContext(config, contents, contextInfo)
+
+    const startTime = Date.now()
+    const result = await executeGeminiCall(config, contents)
+
+    geminiDebugger.logResponse(result, Date.now() - startTime)
+
+    return result as Phase2Result
+  } catch (error) {
+    console.error('[Phase 2] Gemini API Error:', error)
+    if (error instanceof Error) throw error
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
+  }
+}
+
+/**
+ * Phase 3: 개구부 인식
+ * - 의존성: Phase 1-2
+ * - 입력: 이미지 + 프롬프트 + Phase1Result + Phase2Result
+ * - 출력: Phase3Result
+ */
+export async function executePhase3(input: Phase3Input): Promise<Phase3Result> {
+  const geminiDebugger = new GeminiDebugger(3)
+
+  try {
+    const { mimeType, base64Data } = parseBase64Image(input.imageBase64)
+    const config = createGeminiConfig(input.prompt)
+
+    const previousResultsText = formatPreviousResultsForUserMessage({
+      phase1: input.phase1Result,
+      phase2: input.phase2Result,
+    })
+
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          },
+          {
+            text: `## 이전 Phase 결과:\n${previousResultsText}`,
+          },
+          {
+            text: '위 건축 도면 이미지와 이전 Phase 결과를 참고하여 시스템 지시에 따라 JSON을 생성해주세요.',
+          },
+        ],
+      },
+    ]
+
+    const contextInfo: AIContextInfo = {
+      userMessagePhases: [1, 2],
+      hasImage: true,
+    }
+
+    geminiDebugger.logRequestWithContext(config, contents, contextInfo)
+
+    const startTime = Date.now()
+    const result = await executeGeminiCall(config, contents)
+
+    geminiDebugger.logResponse(result, Date.now() - startTime)
+
+    return result as Phase3Result
+  } catch (error) {
+    console.error('[Phase 3] Gemini API Error:', error)
+    if (error instanceof Error) throw error
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
+  }
+}
+
+/**
+ * Phase 4: 공간 분석
+ * - 의존성: Phase 1-3
+ * - 입력: 이미지 + 프롬프트 + previousResults (phase1, phase2, phase3)
+ * - 출력: Phase4Result
+ */
+export async function executePhase4(input: Phase4Input): Promise<Phase4Result> {
+  const geminiDebugger = new GeminiDebugger(4)
+
+  try {
+    const { mimeType, base64Data } = parseBase64Image(input.imageBase64)
+    const config = createGeminiConfig(input.prompt)
+
+    const previousResultsText = formatPreviousResultsForUserMessage({
+      phase1: input.previousResults.phase1,
+      phase2: input.previousResults.phase2,
+      phase3: input.previousResults.phase3,
+    })
+
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          },
+          {
+            text: `## 이전 Phase 결과:\n${previousResultsText}`,
+          },
+          {
+            text: '위 건축 도면 이미지와 이전 Phase 결과를 참고하여 시스템 지시에 따라 JSON을 생성해주세요.',
+          },
+        ],
+      },
+    ]
+
+    const contextInfo: AIContextInfo = {
+      userMessagePhases: [1, 2, 3],
+      hasImage: true,
+    }
+
+    geminiDebugger.logRequestWithContext(config, contents, contextInfo)
+
+    const startTime = Date.now()
+    const result = await executeGeminiCall(config, contents)
+
+    geminiDebugger.logResponse(result, Date.now() - startTime)
+
+    return result as Phase4Result
+  } catch (error) {
+    console.error('[Phase 4] Gemini API Error:', error)
+    if (error instanceof Error) throw error
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
+  }
+}
+
+/**
+ * Phase 5: 치수 계산
+ * - 의존성: Phase 1-4
+ * - 입력: 이미지 + 프롬프트 + previousResults (phase1-4)
+ * - 출력: Phase5Result
+ */
+export async function executePhase5(input: Phase5Input): Promise<Phase5Result> {
+  const geminiDebugger = new GeminiDebugger(5)
+
+  try {
+    const { mimeType, base64Data } = parseBase64Image(input.imageBase64)
+    const config = createGeminiConfig(input.prompt)
+
+    const previousResultsText = formatPreviousResultsForUserMessage({
+      phase1: input.previousResults.phase1,
+      phase2: input.previousResults.phase2,
+      phase3: input.previousResults.phase3,
+      phase4: input.previousResults.phase4,
+    })
+
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          },
+          {
+            text: `## 이전 Phase 결과:\n${previousResultsText}`,
+          },
+          {
+            text: '위 건축 도면 이미지와 이전 Phase 결과를 참고하여 시스템 지시에 따라 JSON을 생성해주세요.',
+          },
+        ],
+      },
+    ]
+
+    const contextInfo: AIContextInfo = {
+      userMessagePhases: [1, 2, 3, 4],
+      hasImage: true,
+    }
+
+    geminiDebugger.logRequestWithContext(config, contents, contextInfo)
+
+    const startTime = Date.now()
+    const result = await executeGeminiCall(config, contents)
+
+    geminiDebugger.logResponse(result, Date.now() - startTime)
+
+    return result as Phase5Result
+  } catch (error) {
+    console.error('[Phase 5] Gemini API Error:', error)
+    if (error instanceof Error) throw error
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
+  }
+}
+
+/**
+ * Phase 6: Master JSON 생성 (기존 Phase 7)
+ * - 의존성: Phase 1-5
+ * - 입력: 프롬프트 + allResults (phase1-5) (이미지 없음)
+ * - 출력: MasterJSON
+ */
+export async function executePhase6(input: Phase6Input): Promise<MasterJSON> {
+  const geminiDebugger = new GeminiDebugger(6)
+
+  try {
+    const config = createGeminiConfig(input.prompt)
+
+    const allResultsText = formatPreviousResultsForUserMessage({
+      phase1: input.allResults.phase1,
+      phase2: input.allResults.phase2,
+      phase3: input.allResults.phase3,
+      phase4: input.allResults.phase4,
+      phase5: input.allResults.phase5,
+    })
+
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: `## Phase 1-5 결과:\n${allResultsText}`,
+          },
+          {
+            text: '위 Phase 1-5 결과를 기반으로 시스템 지시에 따라 최종 Master JSON을 생성해주세요.',
+          },
+        ],
+      },
+    ]
+
+    const contextInfo: AIContextInfo = {
+      userMessagePhases: [1, 2, 3, 4, 5],
+      hasImage: false,
+    }
+
+    geminiDebugger.logRequestWithContext(config, contents, contextInfo)
+
+    const startTime = Date.now()
+    const result = await executeGeminiCall(config, contents)
+
+    geminiDebugger.logResponse(result, Date.now() - startTime)
+
+    return result as MasterJSON
+  } catch (error) {
+    console.error('[Phase 6] Gemini API Error:', error)
+    if (error instanceof Error) throw error
+    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
+  }
+}
+
+// ============================================================================
+// 레거시 함수 (하위 호환성 유지, 향후 제거 예정)
+// ============================================================================
+
+// ============================================================================
 // 메인 함수 1: analyzeWithGemini (Phase 1-5용)
 // ============================================================================
 /**
  * Gemini 3 Pro Preview 모델로 이미지 + 프롬프트 분석
+ *
+ * @deprecated executePhase1 ~ executePhase5 사용을 권장합니다.
+ * 이 함수는 하위 호환성을 위해 유지되며, 향후 제거될 예정입니다.
  *
  * 【사용 Phase】Phase 1, 2, 3, 4, 5
  * 【입력】건축 도면 이미지(Base64) + 분석 프롬프트
@@ -194,251 +625,58 @@ export async function analyzeWithGemini(
 }
 
 // ============================================================================
-// 메인 함수 2: verifyWithGemini (Phase 6용)
+// 레거시 함수 2: generateMasterJSON (기존 Phase 7용 → 현재 Phase 6)
 // ============================================================================
 /**
- * Phase 6: Human-in-the-Loop 검증
+ * Master JSON 생성 (레거시 래퍼)
  *
- * 【사용 Phase】Phase 6
- * 【목적】이전 Phase(1-5) 결과를 종합 검증하여 오류/누락 사항 확인
- * 【특징】이전 Phase 결과를 프롬프트에 포함하여 AI가 전체 맥락 이해
+ * @deprecated executePhase6 사용을 권장합니다.
+ * 이 함수는 하위 호환성을 위해 유지되며, 향후 제거될 예정입니다.
  *
- * @param imageBase64 - 원본 건축 도면 이미지
- * @param prompt - Phase 6 검증 프롬프트
- * @param previousResults - Phase 1-5의 분석 결과 (JSON 객체들)
- * @returns 검증 결과 JSON (수정 제안, 오류 지적 등)
+ * 참고: 기존 Phase 7이 Phase 6으로 승격되었으며,
+ * 기존 Phase 6 (Human-in-the-loop Validation)은 제거되었습니다.
  *
- * 【analyzeWithGemini()와의 차이점】
- * - previousResults를 프롬프트에 추가하여 이전 결과 참조
- * - 이미지 해상도를 MEDIUM으로 낮춤 (이미 분석된 이미지이므로)
- */
-export async function verifyWithGemini(
-  imageBase64: string,
-  prompt: string,
-  previousResults: {
-    phase1?: any  // 좌표계 정규화 결과
-    phase2?: any  // 공간 인식 결과
-    phase3?: any  // 구조 요소 인식 결과
-    phase4?: any  // 개구부 인식 결과
-    phase5?: any  // 설비 인식 결과
-  }
-): Promise<any> {
-  // 디버깅용 로거 초기화 (Phase 6)
-  const geminiDebugger = new GeminiDebugger(6)
-
-  try {
-    // ────────────────────────────────────────────────────────────────
-    // Step 1: 이미지 파싱 (analyzeWithGemini와 동일)
-    // ────────────────────────────────────────────────────────────────
-    const matches = imageBase64.match(/^data:(.+);base64,(.+)$/)
-    if (!matches) {
-      throw new Error('Invalid base64 image format')
-    }
-
-    const mimeType = matches[1]
-    const base64Data = matches[2]
-
-    // ────────────────────────────────────────────────────────────────
-    // Step 2: API 설정 (systemInstruction 포함)
-    // ────────────────────────────────────────────────────────────────
-    const config = {
-      temperature: 0.95,
-      thinkingConfig: {
-        thinkingLevel: ThinkingLevel.HIGH,
-      },
-      // HIGH: 검증 단계에서도 고해상도로 정확한 분석 수행
-      mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
-      // systemInstruction: 시스템 프롬프트 (공식 형식 준수)
-      systemInstruction: [{ text: prompt }],
-    }
-
-    // ────────────────────────────────────────────────────────────────
-    // Step 3: 콘텐츠 구조 (이미지 + 이전 결과 JSON + 실행 트리거)
-    // ────────────────────────────────────────────────────────────────
-    // AI가 Phase 1-5 결과를 검토할 수 있도록 JSON 형태로 추가
-    const contents = [
-      {
-        role: 'user',
-        parts: [
-          {
-            inlineData: {
-              mimeType,
-              data: base64Data,
-            },
-          },
-          // 이전 Phase 결과 (데이터)
-          {
-            text: `## 이전 Phase 결과:\n${JSON.stringify(previousResults, null, 2)}`,
-          },
-          // 실행 트리거 멘트
-          {
-            text: '위 이미지와 이전 Phase 결과를 검증하여 시스템 지시에 따라 JSON을 생성해주세요.',
-          },
-        ],
-      },
-    ]
-
-    // ✅ API 요청 데이터 로깅
-    geminiDebugger.logRequest(config, contents)
-
-    // 응답 시간 측정 시작
-    const startTime = Date.now()
-
-    // ────────────────────────────────────────────────────────────────
-    // Step 4: API 호출 및 응답 수집 (analyzeWithGemini와 동일)
-    // ────────────────────────────────────────────────────────────────
-    const response = await genAI.models.generateContentStream({
-      model: 'gemini-3-pro-preview',
-      config,
-      contents,
-    })
-
-    // 스트리밍 응답 수집
-    let fullText = ''
-    for await (const chunk of response) {
-      if (chunk.text) {
-        fullText += chunk.text
-      }
-    }
-
-    // JSON 추출 및 반환
-    const jsonMatch = fullText.match(/```json\s*([\s\S]*?)\s*```/)
-    let parsedResult
-
-    if (jsonMatch) {
-      parsedResult = JSON.parse(jsonMatch[1])
-    } else {
-      parsedResult = JSON.parse(fullText)
-    }
-
-    // ✅ API 응답 로깅
-    geminiDebugger.logResponse(parsedResult, Date.now() - startTime)
-
-    return parsedResult
-  } catch (error) {
-    console.error('[Phase 6] Gemini API Error:', error)
-    // 원본 에러 타입 보존하여 상위에서 적절한 처리 가능
-    if (error instanceof Error) {
-      throw error
-    }
-    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
-  }
-}
-
-// ============================================================================
-// 메인 함수 3: generateMasterJSON (Phase 7용)
-// ============================================================================
-/**
- * Phase 7: Master JSON 생성
- *
- * 【사용 Phase】Phase 7 (최종 단계)
- * 【목적】Phase 1-6 결과를 종합하여 최종 BIM JSON 생성
- * 【특징】이미지 없이 텍스트만 사용 (이미 모든 분석 완료됨)
- *
- * @param prompt - Phase 7 프롬프트 (최종 JSON 생성 지침)
- * @param allResults - Phase 1-6의 모든 분석 결과
+ * @param prompt - Phase 6 프롬프트 (최종 JSON 생성 지침)
+ * @param allResults - Phase 1-5의 모든 분석 결과
  * @returns 최종 BIM JSON (Three.js 렌더링용)
- *
- * 【다른 함수와의 차이점】
- * - 이미지를 전송하지 않음 (텍스트 전용)
- * - mediaResolution 설정 없음
- * - Phase 1-6 모든 결과를 프롬프트에 포함
  */
 export async function generateMasterJSON(
   prompt: string,
   allResults: {
-    phase1: any  // 좌표계 정규화
-    phase2: any  // 공간 인식
-    phase3: any  // 구조 요소 인식
-    phase4: any  // 개구부 인식
-    phase5: any  // 설비 인식
-    phase6: any  // Human-in-the-Loop 검증 결과
+    phase1: any
+    phase2: any
+    phase3: any
+    phase4: any
+    phase5: any
   }
 ): Promise<any> {
-  // 디버깅용 로거 초기화 (Phase 7)
-  const geminiDebugger = new GeminiDebugger(7)
+  console.warn('[DEPRECATED] generateMasterJSON은 deprecated입니다. executePhase6을 사용하세요.')
+  return executePhase6({
+    prompt,
+    allResults,
+  })
+}
 
-  try {
-    // ────────────────────────────────────────────────────────────────
-    // Step 1: API 설정 (systemInstruction 포함)
-    // ────────────────────────────────────────────────────────────────
-    const config = {
-      temperature: 0.95,
-      thinkingConfig: {
-        thinkingLevel: ThinkingLevel.HIGH,
-      },
-      // mediaResolution: 텍스트 전용이지만 설정 통일
-      mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
-      // systemInstruction: 시스템 프롬프트 (공식 형식 준수)
-      systemInstruction: [{ text: prompt }],
-    }
+// verifyWithGemini 함수는 제거됨 (기존 Phase 6 Human-in-the-loop Validation 삭제)
 
-    // ────────────────────────────────────────────────────────────────
-    // Step 2: 콘텐츠 구조 (Phase 1-6 결과 JSON + 실행 트리거)
-    // ────────────────────────────────────────────────────────────────
-    // Phase 1-6의 모든 분석 결과를 AI에게 전달
-    // AI는 이 데이터를 기반으로 최종 BIM JSON 생성
-    const contents = [
-      {
-        role: 'user',
-        parts: [
-          // Phase 1-6 결과 (데이터)
-          {
-            text: `## Phase 1-6 결과:\n${JSON.stringify(allResults, null, 2)}`,
-          },
-          // 실행 트리거 멘트
-          {
-            text: '위 Phase 1-6 결과를 기반으로 시스템 지시에 따라 최종 Master JSON을 생성해주세요.',
-          },
-        ],
-      },
-    ]
-
-    // ✅ API 요청 데이터 로깅
-    geminiDebugger.logRequest(config, contents)
-
-    // 응답 시간 측정 시작
-    const startTime = Date.now()
-
-    // ────────────────────────────────────────────────────────────────
-    // Step 3: API 호출 및 응답 수집
-    // ────────────────────────────────────────────────────────────────
-    const response = await genAI.models.generateContentStream({
-      model: 'gemini-3-pro-preview',
-      config,
-      contents,
-    })
-
-    // 스트리밍 응답 수집
-    let fullText = ''
-    for await (const chunk of response) {
-      if (chunk.text) {
-        fullText += chunk.text
-      }
-    }
-
-    // JSON 추출 및 반환 (최종 BIM JSON)
-    const jsonMatch = fullText.match(/```json\s*([\s\S]*?)\s*```/)
-    let parsedResult
-
-    if (jsonMatch) {
-      parsedResult = JSON.parse(jsonMatch[1])
-    } else {
-      parsedResult = JSON.parse(fullText)
-    }
-
-    // ✅ API 응답 로깅
-    geminiDebugger.logResponse(parsedResult, Date.now() - startTime)
-
-    return parsedResult
-  } catch (error) {
-    console.error('[Phase 7] Gemini API Error:', error)
-    // 원본 에러 타입 보존
-    if (error instanceof Error) {
-      throw error
-    }
-    throw new Error(`Gemini API 호출 실패: ${String(error)}`)
+// ============================================================================
+// 레거시 함수 3: 하위 호환성을 위한 executePhase7 alias
+// ============================================================================
+/**
+ * @deprecated Phase 7이 Phase 6으로 승격되었습니다. executePhase6을 사용하세요.
+ */
+export async function executePhase7(input: {
+  prompt: string
+  allResults: {
+    phase1: any
+    phase2: any
+    phase3: any
+    phase4: any
+    phase5: any
   }
+}): Promise<MasterJSON> {
+  console.warn('[DEPRECATED] executePhase7은 deprecated입니다. executePhase6을 사용하세요.')
+  return executePhase6(input as Phase6Input)
 }
 
 // ============================================================================

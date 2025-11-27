@@ -1,7 +1,11 @@
 /**
- * Phase 6: Confidence API
+ * Phase 6: Master JSON API (기존 Phase 7 승격)
  *
- * Human-in-the-Loop 검증 및 신뢰도 평가
+ * 최종 BIM JSON 생성 - Phase 1-5 결과를 종합하여 3D 렌더링용 데이터 생성
+ *
+ * 변경 이력:
+ * - 기존 Phase 6 (Human-in-the-loop Validation) 제거
+ * - 기존 Phase 7 (Master JSON Assembly)가 Phase 6으로 승격
  */
 
 // Vercel Serverless Function 타임아웃 설정
@@ -9,10 +13,9 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server'
-import { verifyWithGemini } from '@/lib/ai/gemini-client'
-import { validatePhaseResultSafe } from '@/lib/validation/schemas'
+import { executePhase6 } from '@/lib/ai/gemini-client'
+import { validatePhaseResult } from '@/lib/validation/schemas'
 import { errorResponse, successResponse, ValidationError, GeminiError, PromptNotFoundError } from '@/lib/error/handlers'
-import { list } from '@vercel/blob'
 import { getLatestPrompt } from '@/lib/config/prompt-manager'
 import { saveExecutionResult } from '@/lib/config/result-manager'
 import { initializeLocalPrompts } from '@/lib/config/prompt-loader'
@@ -23,14 +26,18 @@ export async function POST(request: NextRequest) {
     await initializeLocalPrompts()
 
     const body = await request.json()
-    const { imageBase64, promptVersion, previousResults } = body
+    const { promptVersion, allResults } = body
 
-    if (!imageBase64) {
-      throw new ValidationError('이미지가 필요합니다.')
-    }
-
-    if (!previousResults || !previousResults.phase1 || !previousResults.phase2) {
-      throw new ValidationError('Phase 1-5 결과가 필요합니다.')
+    // Phase 1-5 결과 검증 (Phase 6은 더 이상 필요하지 않음)
+    if (
+      !allResults ||
+      !allResults.phase1 ||
+      !allResults.phase2 ||
+      !allResults.phase3 ||
+      !allResults.phase4 ||
+      !allResults.phase5
+    ) {
+      throw new ValidationError('Phase 1-5의 모든 결과가 필요합니다.')
     }
 
     // 프롬프트 가져오기 (환경 자동 감지)
@@ -43,32 +50,37 @@ export async function POST(request: NextRequest) {
     const promptContent = promptData.content
     const actualVersion = promptData.version
 
-    // Gemini API 호출 (Phase 1-5 결과 포함)
+    // Gemini API 호출 (executePhase6 - Phase 1-5 결과를 User Message에 포함)
     let result
     try {
-      result = await verifyWithGemini(imageBase64, promptContent, {
-        phase1: previousResults.phase1,
-        phase2: previousResults.phase2,
-        phase3: previousResults.phase3,
-        phase4: previousResults.phase4,
-        phase5: previousResults.phase5,
+      result = await executePhase6({
+        prompt: promptContent,
+        allResults: {
+          phase1: allResults.phase1,
+          phase2: allResults.phase2,
+          phase3: allResults.phase3,
+          phase4: allResults.phase4,
+          phase5: allResults.phase5,
+        },
       })
     } catch (error) {
       throw new GeminiError(error instanceof Error ? error.message : 'Gemini API 호출 실패')
     }
 
-    // Safe Validation: 검증 실패해도 원본 데이터 저장
-    const validation = validatePhaseResultSafe(6, result)
+    // 결과 검증
+    const validation = validatePhaseResult(6, result)
+    if (!validation.valid) {
+      throw new ValidationError('Phase 6 결과 검증 실패', validation.errors)
+    }
 
-    // 실행 결과 저장 (검증 실패해도 저장됨)
+    // 최종 결과 저장 (환경 자동 감지)
     const resultUrl = await saveExecutionResult(
       6,
       actualVersion,
-      validation.data, // 원본 또는 검증된 데이터
+      validation.data,
       {
         timestamp: new Date().toISOString(),
-        validated: validation.valid, // 검증 여부 메타데이터
-        validationErrors: validation.errors, // 검증 에러 (있으면)
+        isFinal: true,
       }
     )
 
@@ -80,53 +92,9 @@ export async function POST(request: NextRequest) {
       metadata: {
         promptVersion: actualVersion,
         timestamp: new Date().toISOString(),
-        validated: validation.valid, // 검증 여부 표시
-        validationWarnings: validation.warning ? validation.errors : undefined,
-        requiresUserReview: validation.data?.verification?.overallConfidence < 0.8,
+        isFinal: true,
+        message: '최종 BIM JSON이 생성되었습니다.',
       },
-    })
-  } catch (error) {
-    return errorResponse(error)
-  }
-}
-
-/**
- * PUT: 사용자 피드백 제출
- */
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { phase6Result, userFeedback } = body
-
-    if (!phase6Result || !userFeedback) {
-      throw new ValidationError('Phase 6 결과와 사용자 피드백이 필요합니다.')
-    }
-
-    // 사용자 피드백을 Phase 6 결과에 병합
-    const updatedResult = {
-      ...phase6Result,
-      userFeedback,
-    }
-
-    // 업데이트된 결과 저장
-    const resultUrl = await saveExecutionResult(
-      6,
-      'latest',
-      updatedResult,
-      {
-        timestamp: new Date().toISOString(),
-        userApproved: userFeedback.approved,
-      }
-    )
-
-    return successResponse({
-      success: true,
-      phase: 6,
-      result: updatedResult,
-      resultUrl,
-      message: userFeedback.approved
-        ? '사용자 승인이 완료되었습니다.'
-        : '수정 사항이 반영되었습니다.',
     })
   } catch (error) {
     return errorResponse(error)

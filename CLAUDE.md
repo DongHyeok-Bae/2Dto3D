@@ -52,7 +52,7 @@ Next.js 14 프로젝트 기본 구조 설정 및 개발 환경 구축
 - ✅ `app/globals.css`: 글로벌 스타일 + 경희대 테마
 - ✅ `app/page.tsx`: 홈페이지 (Hero, Features, Process Flow)
 - ✅ `types/index.ts`: 전체 타입 정의
-  - Phase 1-7 결과 타입
+  - Phase 1-6 결과 타입
   - MasterJSON 타입
   - 프롬프트 관리 타입
   - Zustand Store 타입
@@ -151,7 +151,7 @@ Vercel Blob Storage 기반 프롬프트 버전 관리 시스템 구축
   - 활성 프롬프트 선택
   - LocalStorage 자동 저장
 - ✅ `store/pipelineStore.ts`: 파이프라인 실행 상태
-  - Phase 1-7 결과 캐싱
+  - Phase 1-6 결과 캐싱
   - 실행 상태 추적
   - 부분 재실행 지원
 
@@ -163,7 +163,7 @@ Vercel Blob Storage 기반 프롬프트 버전 관리 시스템 구축
 
 #### 4. 프롬프트 템플릿
 - ✅ `lib/ai/prompts/phase1.md`: Phase 1 프롬프트 초안
-- Phase 2-7 프롬프트는 "단계별 프롬프트" 폴더에 준비됨
+- Phase 2-6 프롬프트는 "단계별 프롬프트" 폴더에 준비됨
 
 #### 5. UI 개선
 - ✅ 로고 이미지 적용 (logo-crossover.png)
@@ -236,7 +236,7 @@ Vercel Blob Storage 기반 프롬프트 버전 관리 시스템 구축
 **담당**: Claude (Sonnet 4.5)
 
 ### 🎯 목표
-Google Gemini API 기반 Phase 1-7 파이프라인 구현
+Google Gemini API 기반 Phase 1-6 파이프라인 구현
 
 ### ✅ 완료된 작업
 
@@ -271,14 +271,13 @@ Google Gemini API 기반 Phase 1-7 파이프라인 구현
   - `PromptNotFoundError`: 프롬프트 없음
   - `errorResponse()`: 일관된 에러 응답
 
-#### 5. Phase 1-7 API 엔드포인트
+#### 5. Phase 1-6 API 엔드포인트
 - ✅ `app/api/pipeline/phase1/route.ts`: Normalization
 - ✅ `app/api/pipeline/phase2/route.ts`: Structure
 - ✅ `app/api/pipeline/phase3/route.ts`: Openings
 - ✅ `app/api/pipeline/phase4/route.ts`: Spaces
 - ✅ `app/api/pipeline/phase5/route.ts`: Dimensions
-- ✅ `app/api/pipeline/phase6/route.ts`: Confidence (POST + PUT)
-- ✅ `app/api/pipeline/phase7/route.ts`: Master JSON
+- ✅ `app/api/pipeline/phase6/route.ts`: Master JSON (최종 BIM JSON 생성)
 
 **API 특징:**
 - 프롬프트 버전 관리 (Blob Storage)
@@ -329,7 +328,7 @@ Google Gemini API 기반 Phase 1-7 파이프라인 구현
 
 #### 2. Phase 실행 UI
 - ✅ `components/pipeline/PhaseRunner.tsx`
-  - 전체 실행 (Phase 1-7 순차)
+  - 전체 실행 (Phase 1-6 순차)
   - 단독 실행 (개별 Phase)
   - 상태 관리 (pending/running/completed/error)
   - 진행률 표시 및 실시간 업데이트
@@ -346,8 +345,7 @@ Google Gemini API 기반 Phase 1-7 파이프라인 구현
     - Phase 3: 문/창문 통계
     - Phase 4: 공간 목록 및 면적
     - Phase 5: 치수 통계
-    - Phase 6: 신뢰도 및 이슈
-    - Phase 7: Master JSON 요약
+    - Phase 6: Master JSON 요약
   - Section/Item 헬퍼 컴포넌트
 
 #### 4. 메인 서비스 페이지

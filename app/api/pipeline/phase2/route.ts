@@ -9,7 +9,7 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server'
-import { analyzeWithGemini } from '@/lib/ai/gemini-client'
+import { executePhase2 } from '@/lib/ai/gemini-client'
 import { validatePhaseResultSafe } from '@/lib/validation/schemas'
 import { errorResponse, successResponse, ValidationError, GeminiError, PromptNotFoundError } from '@/lib/error/handlers'
 import { list } from '@vercel/blob'
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     await initializeLocalPrompts()
 
     const body = await request.json()
-    const { imageBase64, promptVersion, phase1Result } = body
+    const { imageBase64, promptVersion, previousResults } = body
 
     if (!imageBase64) {
       throw new ValidationError('이미지가 필요합니다.')
@@ -36,18 +36,22 @@ export async function POST(request: NextRequest) {
       throw new PromptNotFoundError(2)
     }
 
-    let promptContent = promptData.content
+    const promptContent = promptData.content
     const actualVersion = promptData.version
 
-    // Phase 1 결과를 프롬프트에 추가
-    if (phase1Result) {
-      promptContent += `\n\n## Phase 1 결과:\n${JSON.stringify(phase1Result, null, 2)}`
+    // Phase 1 결과 검증
+    if (!previousResults?.phase1) {
+      throw new ValidationError('Phase 1 결과가 필요합니다.')
     }
 
-    // Gemini API 호출
+    // Gemini API 호출 (executePhase2 - Phase1 결과를 User Message에 포함)
     let result
     try {
-      result = await analyzeWithGemini(imageBase64, promptContent, 2)
+      result = await executePhase2({
+        prompt: promptContent,
+        imageBase64,
+        phase1Result: previousResults.phase1,
+      })
     } catch (error) {
       throw new GeminiError(error instanceof Error ? error.message : 'Gemini API 호출 실패')
     }

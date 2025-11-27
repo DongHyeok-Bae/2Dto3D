@@ -6,7 +6,6 @@ import type {
   Phase3Result,
   Phase4Result,
   Phase5Result,
-  Phase6Result,
   MasterJSON,
 } from '@/types'
 
@@ -25,15 +24,14 @@ interface PipelineState {
   uploadedImage: string | null
   uploadedImageName: string | null
 
-  // 각 Phase 결과
+  // 각 Phase 결과 (6단계 파이프라인)
   results: {
     phase1?: Phase1Result
     phase2?: Phase2Result
     phase3?: Phase3Result
     phase4?: Phase4Result
     phase5?: Phase5Result
-    phase6?: Phase6Result
-    phase7?: MasterJSON
+    phase6?: MasterJSON // Phase 6 = Master JSON Assembly (기존 Phase 7)
   }
 
   // 각 Phase 메타데이터
@@ -44,7 +42,6 @@ interface PipelineState {
     phase4?: PhaseMetadata
     phase5?: PhaseMetadata
     phase6?: PhaseMetadata
-    phase7?: PhaseMetadata
   }
 
   // 실행 상태
@@ -98,7 +95,7 @@ export const usePipelineStore = create<PipelineState>()(
               timestamp: new Date().toISOString(),
             },
           },
-          currentPhase: phase < 7 ? phase + 1 : phase,
+          currentPhase: phase < 6 ? phase + 1 : phase, // 6단계 파이프라인
         })),
 
       setExecuting: (phase, executing) =>
@@ -124,8 +121,8 @@ export const usePipelineStore = create<PipelineState>()(
           const newResults = { ...state.results }
           const newMetadata = { ...state.metadata }
 
-          // phase부터 이후 결과 모두 삭제
-          for (let i = phase; i <= 7; i++) {
+          // phase부터 이후 결과 모두 삭제 (6단계 파이프라인)
+          for (let i = phase; i <= 6; i++) {
             delete newResults[`phase${i}` as keyof typeof newResults]
             delete newMetadata[`phase${i}` as keyof typeof newMetadata]
           }
@@ -139,6 +136,7 @@ export const usePipelineStore = create<PipelineState>()(
     }),
     {
       name: 'pipeline-storage',
+      version: 2, // 버전 업그레이드 (7단계 → 6단계 마이그레이션)
       partialize: state => ({
         currentPhase: state.currentPhase,
         uploadedImage: state.uploadedImage,
@@ -146,6 +144,30 @@ export const usePipelineStore = create<PipelineState>()(
         results: state.results,
         metadata: state.metadata,
       }),
+      // localStorage 마이그레이션: 기존 7단계 데이터를 6단계로 변환
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2 && persistedState?.results) {
+          // 기존 phase7 (MasterJSON) 데이터가 있으면 phase6으로 이동
+          if (persistedState.results.phase7) {
+            persistedState.results.phase6 = persistedState.results.phase7
+            delete persistedState.results.phase7
+          }
+          // 기존 phase6이 confidence 구조(검증 데이터)이면 삭제
+          else if (persistedState.results.phase6?.confidence || persistedState.results.phase6?.verification) {
+            delete persistedState.results.phase6
+          }
+          // 메타데이터도 마이그레이션
+          if (persistedState.metadata?.phase7) {
+            persistedState.metadata.phase6 = persistedState.metadata.phase7
+            delete persistedState.metadata.phase7
+          }
+          // currentPhase가 7이면 6으로 조정
+          if (persistedState.currentPhase === 7) {
+            persistedState.currentPhase = 6
+          }
+        }
+        return persistedState
+      },
     }
   )
 )

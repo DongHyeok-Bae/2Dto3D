@@ -9,7 +9,7 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server'
-import { analyzeWithGemini } from '@/lib/ai/gemini-client'
+import { executePhase1 } from '@/lib/ai/gemini-client'
 import { validatePhaseResultSafe } from '@/lib/validation/schemas'
 import { errorResponse, successResponse, ValidationError, GeminiError, PromptNotFoundError } from '@/lib/error/handlers'
 import { list } from '@vercel/blob'
@@ -40,10 +40,13 @@ export async function POST(request: NextRequest) {
     const promptContent = promptData.content
     const actualVersion = promptData.version
 
-    // Gemini API 호출
+    // Gemini API 호출 (executePhase1 사용)
     let result
     try {
-      result = await analyzeWithGemini(imageBase64, promptContent, 1)
+      result = await executePhase1({
+        prompt: promptContent,
+        imageBase64,
+      })
     } catch (error) {
       throw new GeminiError(error instanceof Error ? error.message : 'Gemini API 호출 실패')
     }

@@ -169,43 +169,11 @@ export const phase5Schema = z.object({
 
 export type Phase5Result = z.infer<typeof phase5Schema>
 
-// ==================== Phase 6: Confidence ====================
+// ==================== Phase 6: Master JSON (기존 Phase 7) ====================
+// Phase 6 (Human-in-the-loop Validation) 삭제됨
+// Phase 7 (Master JSON Assembly)가 Phase 6으로 승격됨
+
 export const phase6Schema = z.object({
-  verification: z.object({
-    overallConfidence: z.number(),
-    issues: z.array(
-      z.object({
-        phase: z.number(),
-        severity: z.enum(['critical', 'warning', 'info']),
-        description: z.string(),
-        suggestion: z.string().optional(),
-      })
-    ),
-    corrections: z
-      .array(
-        z.object({
-          phase: z.number(),
-          field: z.string(),
-          oldValue: z.any(),
-          newValue: z.any(),
-          reason: z.string(),
-        })
-      )
-      .optional(),
-  }),
-  userFeedback: z
-    .object({
-      approved: z.boolean(),
-      comments: z.string().optional(),
-      corrections: z.any().optional(),
-    })
-    .optional(),
-})
-
-export type Phase6Result = z.infer<typeof phase6Schema>
-
-// ==================== Phase 7: Master JSON ====================
-export const masterJSONSchema = z.object({
   metadata: z.object({
     projectName: z.string().optional(),
     version: z.string(),
@@ -236,7 +204,11 @@ export const masterJSONSchema = z.object({
   }),
 })
 
-export type MasterJSON = z.infer<typeof masterJSONSchema>
+export type Phase6Result = z.infer<typeof phase6Schema>
+
+// MasterJSON은 phase6Schema의 alias (하위 호환성)
+export const masterJSONSchema = phase6Schema
+export type MasterJSON = z.infer<typeof phase6Schema>
 
 // ==================== 검증 함수 ====================
 
@@ -249,8 +221,7 @@ const schemaMap = {
   3: phase3Schema,
   4: phase4Schema,
   5: phase5Schema,
-  6: phase6Schema,
-  7: masterJSONSchema,
+  6: phase6Schema, // Phase 6 = Master JSON Assembly
 }
 
 /**
@@ -326,9 +297,9 @@ export function validatePhaseResultPartial(
 
 /**
  * Safe Validation: 검증 실패해도 원본 데이터 반환
- * Phase 1-6에서 사용 (프롬프트 실험 허용)
+ * Phase 1-5에서 사용 (프롬프트 실험 허용)
  *
- * @param phaseNumber - Phase 번호 (1-7)
+ * @param phaseNumber - Phase 번호 (1-6)
  * @param data - 검증할 데이터
  * @returns 항상 데이터 반환 (원본 또는 검증된 데이터)
  */

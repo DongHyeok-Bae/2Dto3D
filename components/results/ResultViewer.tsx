@@ -3,14 +3,14 @@
 import { useState } from 'react'
 import { usePipelineStore } from '@/store/pipelineStore'
 
+// 6단계 파이프라인
 const PHASE_NAMES = {
   1: 'Normalization',
   2: 'Structure',
   3: 'Openings',
   4: 'Spaces',
   5: 'Dimensions',
-  6: 'Confidence',
-  7: 'Master JSON',
+  6: 'Master JSON', // 기존 Phase 7 승격
 }
 
 export default function ResultViewer() {
@@ -154,7 +154,7 @@ export default function ResultViewer() {
 function FormattedResult({ phase, result }: { phase: number; result: any }) {
   if (!result) return null
 
-  // Phase별 커스텀 렌더링
+  // Phase별 커스텀 렌더링 (6단계 파이프라인)
   switch (phase) {
     case 1:
       return <Phase1Formatted data={result} />
@@ -168,8 +168,6 @@ function FormattedResult({ phase, result }: { phase: number; result: any }) {
       return <Phase5Formatted data={result} />
     case 6:
       return <Phase6Formatted data={result} />
-    case 7:
-      return <Phase7Formatted data={result} />
     default:
       return <RawResult result={result} />
   }
@@ -308,45 +306,8 @@ function Phase5Formatted({ data }: { data: any }) {
   )
 }
 
-// Phase 6: Confidence
+// Phase 6: Master JSON (기존 Phase 7 승격)
 function Phase6Formatted({ data }: { data: any }) {
-  return (
-    <div className="space-y-4">
-      <Section title="검증">
-        <Item
-          label="전체 신뢰도"
-          value={`${(data.verification.overallConfidence * 100).toFixed(1)}%`}
-        />
-        <Item label="이슈" value={`${data.verification.issues.length}개`} />
-
-        {data.verification.issues.length > 0 && (
-          <div className="mt-2 space-y-2">
-            {data.verification.issues.map((issue: any, idx: number) => (
-              <div
-                key={idx}
-                className={`text-xs p-2 rounded ${
-                  issue.severity === 'critical'
-                    ? 'bg-red-50 text-red-700'
-                    : issue.severity === 'warning'
-                    ? 'bg-yellow-50 text-yellow-700'
-                    : 'bg-blue-50 text-blue-700'
-                }`}
-              >
-                <div className="font-medium">Phase {issue.phase}: {issue.description}</div>
-                {issue.suggestion && (
-                  <div className="mt-1 text-xs opacity-75">{issue.suggestion}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-    </div>
-  )
-}
-
-// Phase 7: Master JSON
-function Phase7Formatted({ data }: { data: any }) {
   return (
     <div className="space-y-4">
       <Section title="프로젝트">

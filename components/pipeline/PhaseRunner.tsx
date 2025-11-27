@@ -8,14 +8,14 @@ interface PhaseRunnerProps {
   onComplete?: (results: any) => void
 }
 
+// 6단계 파이프라인 (기존 Phase 6 검증 제거, Phase 7이 Phase 6으로 승격)
 const PHASES = [
   { number: 1, name: 'Normalization', description: '좌표계 설정' },
   { number: 2, name: 'Structure', description: '구조 추출' },
   { number: 3, name: 'Openings', description: '개구부 인식' },
   { number: 4, name: 'Spaces', description: '공간 분석' },
   { number: 5, name: 'Dimensions', description: '치수 계산' },
-  { number: 6, name: 'Confidence', description: '신뢰도 검증' },
-  { number: 7, name: 'Master JSON', description: '최종 합성' },
+  { number: 6, name: 'Master JSON', description: '최종 BIM JSON 생성' },
 ]
 
 export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProps) {
@@ -28,7 +28,6 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     4: 'pending',
     5: 'pending',
     6: 'pending',
-    7: 'pending',
   })
   const [errors, setErrors] = useState<Record<number, string>>({})
 
@@ -57,27 +56,16 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
         }
       }
 
-      // Phase 6: Phase 1-5 결과 포함
+      // Phase 6: Master JSON 생성 - Phase 1-5 결과 포함 (이미지 없음)
       if (phaseNumber === 6) {
-        body.previousResults = {
-          phase1: results.phase1,
-          phase2: results.phase2,
-          phase3: results.phase3,
-          phase4: results.phase4,
-          phase5: results.phase5,
-        }
-      }
-
-      // Phase 7: 모든 결과 포함
-      if (phaseNumber === 7) {
         body.allResults = {
           phase1: results.phase1,
           phase2: results.phase2,
           phase3: results.phase3,
           phase4: results.phase4,
           phase5: results.phase5,
-          phase6: results.phase6,
         }
+        delete body.imageBase64 // Phase 6은 이미지 불필요
       }
 
       const response = await fetch(endpoint, {
@@ -111,7 +99,7 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     setErrors({})
 
     try {
-      for (let i = 1; i <= 7; i++) {
+      for (let i = 1; i <= 6; i++) { // 6단계 파이프라인
         await runPhase(i)
         // 각 Phase 사이에 약간의 딜레이 (UI 업데이트를 위해)
         await new Promise(resolve => setTimeout(resolve, 500))
@@ -249,7 +237,7 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
               <div className="mt-2 w-full bg-neutral-warmGray/20 rounded-full h-2">
                 <div
                   className="bg-gradient-royal h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(currentPhase / 7) * 100}%` }}
+                  style={{ width: `${(currentPhase / 6) * 100}%` }}
                 />
               </div>
             </div>
