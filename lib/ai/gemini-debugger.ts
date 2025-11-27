@@ -1,12 +1,10 @@
 /**
- * Gemini API 전용 디버거
- * API 호출 전/후 상세 로깅
+ * Gemini API 전용 디버거 (v3 - Phase 결과 동적 감지)
+ * - SYSTEM과 USER 메시지를 명확히 구분하여 출력
+ * - 실제 JSON 파싱으로 포함된 Phase 결과를 동적으로 감지
  */
 
-import { debugLogger } from '@/lib/utils/debug-logger'
-
 export class GeminiDebugger {
-  private startTime: number = 0
   private phaseNumber: number
 
   constructor(phaseNumber: number) {
@@ -14,217 +12,136 @@ export class GeminiDebugger {
   }
 
   /**
-   * 요청 시작 로깅
+   * 텍스트에서 JSON 객체를 추출하고 Phase 결과 여부를 동적으로 감지
+   * - 하드코딩된 헤더 패턴 대신 실제 JSON 파싱으로 감지
+   * @returns { isPhaseResult: boolean, includedPhases: number[], summary: string }
    */
-  logRequestStart(prompt: string, promptVersion: string, imageBase64?: string): void {
-    this.startTime = Date.now()
-
-    const context = {
-      module: 'gemini-client',
-      function: 'analyzeWithGemini',
-      phase: this.phaseNumber,
-      timestamp: new Date().toISOString()
+  private detectPhaseResults(text: string): {
+    isPhaseResult: boolean
+    includedPhases: number[]
+    summary: string
+  } {
+    // Step 1: 텍스트에서 JSON 객체 추출 시도
+    // 패턴: { ... } 형태의 JSON 블록 찾기
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      return { isPhaseResult: false, includedPhases: [], summary: '' }
     }
 
-    console.log(`\n${'='.repeat(80)}`)
-    console.log(`[Phase ${this.phaseNumber}] ⏱️  REQUEST STARTED AT ${context.timestamp}`)
-    console.log('='.repeat(80))
-
-    // 프롬프트 로깅
-    debugLogger.logPrompt(context, prompt, promptVersion)
-
-    // 이미지 정보
-    if (imageBase64) {
-      const imageSize = imageBase64.length
-      const imageMimeType = this.extractMimeType(imageBase64)
-      const estimatedFileSize = Math.ceil(imageSize * 0.75) // Base64는 원본보다 약 33% 큼
-
-      console.log(`[Phase ${this.phaseNumber}] 🖼️  IMAGE INFO:`)
-      console.log(`[Phase ${this.phaseNumber}]   MIME Type: ${imageMimeType}`)
-      console.log(`[Phase ${this.phaseNumber}]   Base64 Size: ${this.formatBytes(imageSize)}`)
-      console.log(`[Phase ${this.phaseNumber}]   Estimated File Size: ${this.formatBytes(estimatedFileSize)}`)
+    // Step 2: JSON 파싱 시도
+    let parsedJson: any
+    try {
+      parsedJson = JSON.parse(jsonMatch[0])
+    } catch {
+      // JSON 파싱 실패 시 일반 텍스트로 처리
+      return { isPhaseResult: false, includedPhases: [], summary: '' }
     }
+
+    // Step 3: 최상위 키에서 Phase 번호 동적 추출
+    // 키 패턴: "phase1", "phase2", ... "phase7"
+    const includedPhases: number[] = []
+    const keys = Object.keys(parsedJson)
+
+    for (const key of keys) {
+      const phaseMatch = key.match(/^phase(\d+)$/)
+      if (phaseMatch) {
+        includedPhases.push(parseInt(phaseMatch[1], 10))
+      }
+    }
+
+    // Phase 키가 없으면 일반 JSON으로 처리
+    if (includedPhases.length === 0) {
+      return { isPhaseResult: false, includedPhases: [], summary: '' }
+    }
+
+    // Step 4: 정렬 및 요약 문자열 생성
+    includedPhases.sort((a, b) => a - b)
+    const summary = `[✓ Phase ${includedPhases.join(', ')} 결과 포함]`
+
+    return { isPhaseResult: true, includedPhases, summary }
   }
 
   /**
-   * API 설정 로깅
+   * API 요청 데이터 출력 (v3)
+   * - SYSTEM: 요약만 표시 (앞 5줄 + 길이 정보)
+   * - USER: Phase 데이터는 요약, 일반 텍스트는 전체 표시
    */
-  logAPIConfig(config: any): void {
-    console.log(`[Phase ${this.phaseNumber}] 🔧 API CONFIGURATION:`)
+  logRequest(config: any, contents: any[]): void {
+    console.log('\n' + '='.repeat(80))
+    console.log(`[Phase ${this.phaseNumber}] GEMINI API REQUEST`)
+    console.log('='.repeat(80))
 
-    const configDetails = {
+    // 1. CONFIG
+    console.log('\n[CONFIG]')
+    console.log(JSON.stringify({
       temperature: config.temperature,
-      thinkingLevel: config.thinkingConfig?.thinkingLevel,
+      thinkingConfig: config.thinkingConfig,
       mediaResolution: config.mediaResolution,
-      tools: config.tools?.map((t: any) => Object.keys(t)).flat()
+    }, null, 2))
+
+    // 2. SYSTEM INSTRUCTION (요약만 표시)
+    console.log('\n' + '-'.repeat(80))
+    console.log('[SYSTEM INSTRUCTION] (요약)')
+    console.log('-'.repeat(80))
+    if (config.systemInstruction && config.systemInstruction[0]?.text) {
+      const text = config.systemInstruction[0].text
+      const lines = text.split('\n')
+      const preview = lines.slice(0, 5).join('\n')
+      console.log(preview)
+      console.log(`... (총 ${lines.length}줄, ${text.length}자)`)
+    } else {
+      console.log('(없음)')
     }
 
-    Object.entries(configDetails).forEach(([key, value]) => {
-      if (value !== undefined) {
-        console.log(`[Phase ${this.phaseNumber}]   ${key}: ${JSON.stringify(value)}`)
-      }
-    })
-  }
+    // 3. USER MESSAGE - 큰 배너로 구분
+    console.log('\n')
+    console.log('################################################################################')
+    console.log('##                                                                            ##')
+    console.log('##                         [USER MESSAGE - 유저 메시지]                        ##')
+    console.log('##                                                                            ##')
+    console.log('################################################################################')
 
-  /**
-   * 스트리밍 청크 수신 로깅
-   */
-  logStreamChunk(chunkNumber: number, chunkText: string): void {
-    if (process.env.DEBUG_LEVEL === 'verbose') {
-      console.log(`[Phase ${this.phaseNumber}] 📦 Stream Chunk #${chunkNumber}: ${chunkText.length} chars`)
-      if (chunkText.length < 200) {
-        console.log(`[Phase ${this.phaseNumber}]   Content: ${chunkText}`)
-      }
-    }
-  }
+    contents.forEach((message, msgIndex) => {
+      console.log(`\nMessage ${msgIndex + 1} (role: ${message.role})`)
+      console.log('-'.repeat(40))
 
-  /**
-   * 응답 완료 로깅
-   */
-  logResponseComplete(fullText: string, parsedResult: any): void {
-    const duration = Date.now() - this.startTime
+      message.parts?.forEach((part: any, partIndex: number) => {
+        if (part.inlineData) {
+          console.log(`[Part ${partIndex + 1}] IMAGE: ${part.inlineData.mimeType}, length: ${part.inlineData.data?.length || 0}`)
+        } else if (part.text) {
+          // Phase 결과 동적 감지
+          const detection = this.detectPhaseResults(part.text)
 
-    console.log(`\n[Phase ${this.phaseNumber}] ✅ RESPONSE COMPLETED`)
-    console.log(`[Phase ${this.phaseNumber}] ⏱️  Duration: ${duration}ms (${(duration / 1000).toFixed(2)}s)`)
-    console.log(`[Phase ${this.phaseNumber}] 📝 Response Text Length: ${fullText.length} chars`)
-
-    // JSON 구조 분석
-    if (parsedResult) {
-      const keys = Object.keys(parsedResult)
-      console.log(`[Phase ${this.phaseNumber}] 📊 Parsed JSON Structure:`)
-      console.log(`[Phase ${this.phaseNumber}]   Root Keys: ${keys.join(', ')}`)
-
-      // 각 키의 타입과 크기 표시
-      keys.forEach(key => {
-        const value = parsedResult[key]
-        const valueType = Array.isArray(value) ? 'array' : typeof value
-        let valueInfo = valueType
-
-        if (Array.isArray(value)) {
-          valueInfo += ` (${value.length} items)`
-        } else if (typeof value === 'object' && value !== null) {
-          valueInfo += ` (${Object.keys(value).length} properties)`
-        } else if (typeof value === 'string') {
-          valueInfo += ` (${value.length} chars)`
+          if (detection.isPhaseResult) {
+            // Phase 결과인 경우: 요약만 표시
+            console.log(`[Part ${partIndex + 1}] PHASE DATA:`)
+            console.log('╔══════════════════════════════════════════════════════════════════════════════╗')
+            console.log(`║  ${detection.summary.padEnd(74)}║`)
+            console.log('╚══════════════════════════════════════════════════════════════════════════════╝')
+            console.log(`    (JSON 데이터 ${part.text.length}자 - 요약 생략)`)
+          } else {
+            // 일반 텍스트: 전체 표시
+            console.log(`[Part ${partIndex + 1}] TEXT:`)
+            console.log('>>>>')
+            console.log(part.text)
+            console.log('<<<<')
+          }
         }
-
-        console.log(`[Phase ${this.phaseNumber}]     ${key}: ${valueInfo}`)
       })
-    }
+    })
 
-    // 토큰 사용량 추정
-    const estimatedInputTokens = this.estimateTokens(fullText)
-    const estimatedCost = this.estimateCost(estimatedInputTokens, 0) // 입력 토큰만 추정
-
-    console.log(`[Phase ${this.phaseNumber}] 🎫 ESTIMATED TOKEN USAGE:`)
-    console.log(`[Phase ${this.phaseNumber}]   Output Tokens: ~${estimatedInputTokens}`)
-    console.log(`[Phase ${this.phaseNumber}] 💰 ESTIMATED COST:`)
-    console.log(`[Phase ${this.phaseNumber}]   Total: ~$${estimatedCost.toFixed(6)} USD`)
-
+    console.log('\n################################################################################')
     console.log('='.repeat(80))
   }
 
   /**
-   * 에러 로깅 (전체 컨텍스트)
+   * API 응답 결과 출력
    */
-  logError(error: Error, prompt?: string, imageBase64?: string): void {
-    const duration = Date.now() - this.startTime
-
-    console.error(`\n${'='.repeat(80)}`)
-    console.error(`[Phase ${this.phaseNumber}] ❌ ERROR OCCURRED`)
-    console.error('='.repeat(80))
-    console.error(`[Phase ${this.phaseNumber}] Error Name: ${error.name}`)
-    console.error(`[Phase ${this.phaseNumber}] Error Message: ${error.message}`)
-    console.error(`[Phase ${this.phaseNumber}] Duration Before Error: ${duration}ms`)
-
-    if (process.env.DEBUG_LEVEL !== 'minimal') {
-      console.error(`\n[Phase ${this.phaseNumber}] Stack Trace:`)
-      console.error(error.stack)
-    }
-
-    // 전체 컨텍스트
-    const fullContext: any = {
-      timestamp: new Date().toISOString(),
-      phase: this.phaseNumber,
-      duration: `${duration}ms`
-    }
-
-    if (prompt) {
-      fullContext.promptLength = prompt.length
-      fullContext.promptPreview = prompt.substring(0, 200) + '...'
-    }
-
-    if (imageBase64) {
-      fullContext.imageSize = imageBase64.length
-      fullContext.imageMimeType = this.extractMimeType(imageBase64)
-    }
-
-    console.error(`\n[Phase ${this.phaseNumber}] Full Context:`)
-    console.error(JSON.stringify(fullContext, null, 2))
-    console.error('='.repeat(80))
-
-    // DebugLogger로도 기록
-    debugLogger.logError(
-      {
-        module: 'gemini-client',
-        function: 'analyzeWithGemini',
-        phase: this.phaseNumber,
-        timestamp: new Date().toISOString()
-      },
-      error,
-      fullContext
-    )
-  }
-
-  /**
-   * Base64에서 MIME 타입 추출
-   */
-  private extractMimeType(base64: string): string {
-    const match = base64.match(/^data:(.+?);base64,/)
-    return match ? match[1] : 'unknown'
-  }
-
-  /**
-   * 바이트 포맷팅
-   */
-  private formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-  }
-
-  /**
-   * 토큰 수 추정 (간단한 알고리즘)
-   * 실제 토큰화는 더 복잡하지만, 대략적인 추정
-   */
-  private estimateTokens(text: string): number {
-    // 영어: 약 4자당 1토큰
-    // 한글: 약 2-3자당 1토큰
-    // 혼합 텍스트는 평균 3.5자당 1토큰으로 추정
-    return Math.ceil(text.length / 3.5)
-  }
-
-  /**
-   * 비용 추정 (Gemini API 가격 기준)
-   * 2024년 기준 대략적인 가격
-   */
-  private estimateCost(inputTokens: number, outputTokens: number): number {
-    // Gemini Pro 가격 (대략):
-    // Input: $0.00025 / 1K tokens
-    // Output: $0.0005 / 1K tokens
-    const INPUT_COST_PER_1K = 0.00025
-    const OUTPUT_COST_PER_1K = 0.0005
-
-    const inputCost = (inputTokens / 1000) * INPUT_COST_PER_1K
-    const outputCost = (outputTokens / 1000) * OUTPUT_COST_PER_1K
-
-    return inputCost + outputCost
-  }
-
-  /**
-   * 단계별 진행 상황 로깅
-   */
-  logStep(step: string, details?: string): void {
-    console.log(`[Phase ${this.phaseNumber}] 📍 ${step}${details ? `: ${details}` : ''}`)
+  logResponse(result: any, durationMs: number): void {
+    console.log('\n' + '='.repeat(80))
+    console.log(`[Phase ${this.phaseNumber}] GEMINI API RESPONSE (${durationMs}ms)`)
+    console.log('='.repeat(80))
+    console.log(JSON.stringify(result, null, 2))
+    console.log('='.repeat(80))
   }
 }
