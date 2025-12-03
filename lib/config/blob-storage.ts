@@ -116,3 +116,48 @@ export async function uploadTestImage(
 
   return blob.url
 }
+
+/**
+ * 세션 기반 실행 결과 저장
+ */
+export async function saveExecutionResultWithSession(
+  sessionId: string,
+  phaseNumber: number,
+  promptVersion: string,
+  result: any,
+  metadata: BlobMetadata = {}
+): Promise<string> {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const path = `results/session_${sessionId}/phase${phaseNumber}/${promptVersion}/${timestamp}.json`
+
+  const blob = await put(path, JSON.stringify(result, null, 2), {
+    access: 'public',
+    addRandomSuffix: false,
+    contentType: 'application/json',
+    ...metadata,
+  })
+
+  return blob.url
+}
+
+/**
+ * 특정 세션의 모든 결과 삭제
+ */
+export async function clearSessionResults(sessionId: string): Promise<number> {
+  let totalDeleted = 0
+
+  try {
+    const { blobs } = await list({ prefix: `results/session_${sessionId}/` })
+
+    if (blobs.length > 0) {
+      await Promise.all(blobs.map(blob => del(blob.url)))
+      totalDeleted = blobs.length
+      console.log(`[BlobStorage] Cleared session ${sessionId}: ${totalDeleted} files`)
+    }
+
+    return totalDeleted
+  } catch (error) {
+    console.error('[BlobStorage] Failed to clear session results:', error)
+    throw error
+  }
+}

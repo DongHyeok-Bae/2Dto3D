@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import ImageUploader from '@/components/upload/ImageUploader'
 import PhaseRunner from '@/components/pipeline/PhaseRunner'
@@ -9,8 +9,11 @@ import StorageViewer from '@/components/admin/StorageViewer'
 import ViewerControls, { type ViewerOptions } from '@/components/viewer/ViewerControls'
 import ExportPanel from '@/components/export/ExportPanel'
 import ProjectManager from '@/components/export/ProjectManager'
+import RefreshWarningModal from '@/components/ui/RefreshWarningModal'
 import { usePipelineStore } from '@/store/pipelineStore'
 import { preprocessImage } from '@/lib/image/preprocessor'
+import { resultStorage } from '@/lib/config/result-manager'
+import { getStorageEnvironment } from '@/lib/config/environment'
 
 // 3D 뷰어는 클라이언트 전용이므로 dynamic import
 const Viewer3D = dynamic(() => import('@/components/viewer/Viewer3D'), {
@@ -31,8 +34,87 @@ export default function ServicePage() {
     showAxes: false,
     wireframe: false,
   })
+  const [showRefreshModal, setShowRefreshModal] = useState(false)
 
-  const { setUploadedImage: saveToStore, resetFromPhase, results } = usePipelineStore()
+  const {
+    setUploadedImage: saveToStore,
+    resetFromPhase,
+    results,
+    uploadedImage: storedImage,
+    sessionId,
+    initSession,
+    clearAll,
+  } = usePipelineStore()
+
+  // 새로고침 감지: 세션 플래그 확인
+  useEffect(() => {
+    const sessionFlag = sessionStorage.getItem('2dto3d-session-active')
+    const hasStoredData = storedImage || Object.keys(results).length > 0
+
+    if (!sessionFlag && hasStoredData) {
+      // 새 세션 + 저장된 데이터 = 새로고침
+      setShowRefreshModal(true)
+    } else if (!sessionFlag && !sessionId) {
+      // 새 세션 + 데이터 없음 + 세션 ID 없음 = 최초 접속
+      initSession()
+    }
+
+    // 세션 활성화 플래그 설정
+    sessionStorage.setItem('2dto3d-session-active', 'true')
+  }, [])
+
+  // Store 이미지 동기화
+  useEffect(() => {
+    if (storedImage && !uploadedImage) {
+      setUploadedImage(storedImage)
+    }
+  }, [storedImage])
+
+  // 새로고침 모달: 초기화 확인
+  const handleRefreshConfirm = async () => {
+    try {
+      // 1. 로컬 ResultStorage 초기화
+      resultStorage.clear()
+
+      // 2. Blob Storage 초기화 (호스팅 환경)
+      const env = getStorageEnvironment()
+      if (env === 'vercel' && sessionId) {
+        try {
+          await fetch('/api/storage/clear-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId }),
+          })
+        } catch (e) {
+          console.warn('Blob storage clear failed:', e)
+        }
+      }
+
+      // 3. Zustand store 초기화
+      clearAll()
+
+      // 4. 새 세션 ID 생성
+      initSession()
+
+      // 5. 로컬 state 초기화
+      setUploadedImage(null)
+      setImageMetadata(null)
+      setActiveTab('upload')
+    } catch (error) {
+      console.error('Failed to clear data:', error)
+    } finally {
+      setShowRefreshModal(false)
+    }
+  }
+
+  // 새로고침 모달: 이전 결과 유지
+  const handleRefreshCancel = () => {
+    // Store에서 이미지 복원
+    if (storedImage) {
+      setUploadedImage(storedImage)
+    }
+    setShowRefreshModal(false)
+  }
 
   const handleImageUpload = async (base64: string, metadata: any) => {
     setIsPreprocessing(true)
@@ -68,6 +150,13 @@ export default function ServicePage() {
 
   return (
     <div className="min-h-screen bg-neutral-marble">
+      {/* 새로고침 경고 모달 */}
+      <RefreshWarningModal
+        isOpen={showRefreshModal}
+        onConfirm={handleRefreshConfirm}
+        onCancel={handleRefreshCancel}
+      />
+
       {/* Header */}
       <header className="bg-white border-b border-neutral-warmGray/20">
         <div className="max-w-7xl mx-auto px-6 py-4">

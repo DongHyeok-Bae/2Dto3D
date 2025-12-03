@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { usePipelineStore } from '@/store/pipelineStore'
 
 interface PhaseRunnerProps {
@@ -21,21 +21,38 @@ const PHASES = [
 export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProps) {
   const [isRunning, setIsRunning] = useState(false)
   const [currentPhase, setCurrentPhase] = useState(0)
-  const [phaseStatuses, setPhaseStatuses] = useState<Record<number, 'pending' | 'running' | 'completed' | 'error'>>({
-    1: 'pending',
-    2: 'pending',
-    3: 'pending',
-    4: 'pending',
-    5: 'pending',
-    6: 'pending',
-  })
-  const [errors, setErrors] = useState<Record<number, string>>({})
 
-  const { setPhaseResult, results } = usePipelineStore()
+  const {
+    setPhaseResult,
+    results,
+    executing,
+    errors: storeErrors,
+    setExecuting,
+    setError,
+  } = usePipelineStore()
+
+  // 파생 상태: results, executing, errors에서 phaseStatuses 계산
+  const phaseStatuses = useMemo(() => {
+    const statuses: Record<number, 'pending' | 'running' | 'completed' | 'error'> = {}
+    for (let i = 1; i <= 6; i++) {
+      const phaseKey = `phase${i}` as keyof typeof results
+      if (executing[i]) {
+        statuses[i] = 'running'
+      } else if (storeErrors[i]) {
+        statuses[i] = 'error'
+      } else if (results[phaseKey]) {
+        statuses[i] = 'completed'
+      } else {
+        statuses[i] = 'pending'
+      }
+    }
+    return statuses
+  }, [results, executing, storeErrors])
 
   const runPhase = async (phaseNumber: number) => {
     setCurrentPhase(phaseNumber)
-    setPhaseStatuses(prev => ({ ...prev, [phaseNumber]: 'running' }))
+    setExecuting(phaseNumber, true)
+    setError(phaseNumber, null)
 
     try {
       const endpoint = `/api/pipeline/phase${phaseNumber}`
@@ -83,20 +100,23 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
 
       // 결과 저장 (메타데이터 포함)
       setPhaseResult(phaseNumber, data.result, data.metadata)
-      setPhaseStatuses(prev => ({ ...prev, [phaseNumber]: 'completed' }))
+      setExecuting(phaseNumber, false)
 
       return data.result
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'
-      setErrors(prev => ({ ...prev, [phaseNumber]: errorMessage }))
-      setPhaseStatuses(prev => ({ ...prev, [phaseNumber]: 'error' }))
+      setError(phaseNumber, errorMessage)
+      setExecuting(phaseNumber, false)
       throw error
     }
   }
 
   const runAllPhases = async () => {
     setIsRunning(true)
-    setErrors({})
+    // 모든 Phase 에러 초기화
+    for (let i = 1; i <= 6; i++) {
+      setError(i, null)
+    }
 
     try {
       for (let i = 1; i <= 6; i++) { // 6단계 파이프라인
@@ -208,8 +228,8 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
               <p className="text-sm text-neutral-warmGray">{phase.description}</p>
 
               {/* Error Message */}
-              {errors[phase.number] && (
-                <p className="text-sm text-red-600 mt-1">{errors[phase.number]}</p>
+              {storeErrors[phase.number] && (
+                <p className="text-sm text-red-600 mt-1">{storeErrors[phase.number]}</p>
               )}
             </div>
 

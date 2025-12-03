@@ -19,6 +19,9 @@ export interface PhaseMetadata {
 }
 
 interface PipelineState {
+  // 세션 ID (새로고침 감지용)
+  sessionId: string | null
+
   // 현재 상태
   currentPhase: number
   uploadedImage: string | null
@@ -56,12 +59,15 @@ interface PipelineState {
   setError: (phase: number, error: string | null) => void
   reset: () => void
   resetFromPhase: (phase: number) => void
+  initSession: () => void
+  clearAll: () => void
 }
 
 const initialState = {
+  sessionId: null as string | null,
   currentPhase: 0,
-  uploadedImage: null,
-  uploadedImageName: null,
+  uploadedImage: null as string | null,
+  uploadedImageName: null as string | null,
   results: {},
   metadata: {},
   executing: {},
@@ -116,6 +122,16 @@ export const usePipelineStore = create<PipelineState>()(
 
       reset: () => set(initialState),
 
+      initSession: () =>
+        set({ sessionId: crypto.randomUUID() }),
+
+      clearAll: () => {
+        set(initialState)
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('pipeline-storage')
+        }
+      },
+
       resetFromPhase: phase =>
         set(state => {
           const newResults = { ...state.results }
@@ -138,6 +154,7 @@ export const usePipelineStore = create<PipelineState>()(
       name: 'pipeline-storage',
       version: 2, // 버전 업그레이드 (7단계 → 6단계 마이그레이션)
       partialize: state => ({
+        sessionId: state.sessionId,
         currentPhase: state.currentPhase,
         uploadedImage: state.uploadedImage,
         uploadedImageName: state.uploadedImageName,

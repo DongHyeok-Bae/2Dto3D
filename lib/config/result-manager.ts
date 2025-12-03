@@ -54,6 +54,62 @@ class ResultStorage {
     }
     return results
   }
+
+  /**
+   * 모든 결과 삭제
+   */
+  clear(): void {
+    this.storage.clear()
+    console.log('[ResultStorage] Cleared all results')
+  }
+
+  /**
+   * 세션 기반 결과 저장
+   */
+  saveWithSession(
+    sessionId: string,
+    phaseNumber: number,
+    promptVersion: string,
+    result: any,
+    metadata: any
+  ): string {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const key = `session_${sessionId}/phase${phaseNumber}/${promptVersion}/${timestamp}`
+
+    this.storage.set(key, {
+      result,
+      metadata,
+      savedAt: new Date().toISOString(),
+    })
+
+    console.log(`[ResultStorage] Saved with session: ${key}`)
+    return key
+  }
+
+  /**
+   * 특정 세션의 모든 결과 삭제
+   */
+  clearSession(sessionId: string): number {
+    let deleted = 0
+    const prefix = `session_${sessionId}/`
+
+    for (const key of this.storage.keys()) {
+      if (key.startsWith(prefix)) {
+        this.storage.delete(key)
+        deleted++
+      }
+    }
+
+    console.log(`[ResultStorage] Cleared session ${sessionId}: ${deleted} entries`)
+    return deleted
+  }
+
+  /**
+   * 저장소 크기 조회
+   */
+  getSize(): number {
+    return this.storage.size
+  }
 }
 
 export const resultStorage = ResultStorage.getInstance()
