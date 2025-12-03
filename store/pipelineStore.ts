@@ -73,6 +73,9 @@ interface PipelineState {
   executing: Record<number, boolean>
   errors: Record<number, string | null>
 
+  // 실행 횟수 추적
+  executionCounts: Record<number, number>
+
   // 액션
   setCurrentPhase: (phase: number) => void
   setUploadedImage: (image: string, filename?: string) => void
@@ -87,6 +90,9 @@ interface PipelineState {
   // 선수 조건 체크 함수
   canExecutePhase: (phaseNumber: number) => boolean
   getPrerequisiteStatus: (phaseNumber: number) => PrerequisiteStatus
+
+  // 실행 횟수 증가
+  incrementExecutionCount: (phase: number) => void
 }
 
 const initialState = {
@@ -98,6 +104,7 @@ const initialState = {
   metadata: {},
   executing: {},
   errors: {},
+  executionCounts: {} as Record<number, number>,
 }
 
 export const usePipelineStore = create<PipelineState>()(
@@ -143,6 +150,14 @@ export const usePipelineStore = create<PipelineState>()(
           errors: {
             ...state.errors,
             [phase]: error,
+          },
+        })),
+
+      incrementExecutionCount: (phase: number) =>
+        set(state => ({
+          executionCounts: {
+            ...state.executionCounts,
+            [phase]: (state.executionCounts[phase] || 0) + 1,
           },
         })),
 
@@ -234,6 +249,7 @@ export const usePipelineStore = create<PipelineState>()(
         uploadedImageName: state.uploadedImageName,
         results: state.results,
         metadata: state.metadata,
+        executionCounts: state.executionCounts,
       }),
       // localStorage 마이그레이션: 기존 7단계 데이터를 6단계로 변환
       migrate: (persistedState: any, version: number) => {

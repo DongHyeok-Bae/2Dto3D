@@ -14,7 +14,7 @@ const PHASE_NAMES = {
 }
 
 export default function ResultViewer() {
-  const { results, metadata } = usePipelineStore()
+  const { results, metadata, executionCounts } = usePipelineStore()
   const [selectedPhase, setSelectedPhase] = useState<number>(1)
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted')
 
@@ -88,6 +88,7 @@ export default function ResultViewer() {
         {availablePhases.map(phase => {
           const phaseMetadata = metadata[`phase${phase}` as keyof typeof metadata]
           const isValidated = phaseMetadata?.validated
+          const executionCount = executionCounts?.[phase] || 0
 
           return (
             <button
@@ -104,6 +105,19 @@ export default function ResultViewer() {
             >
               <span className="flex items-center gap-2">
                 Phase {phase}: {PHASE_NAMES[phase as keyof typeof PHASE_NAMES]}
+                {/* 실행 횟수 표시 */}
+                {executionCount > 0 && (
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded ${
+                      selectedPhase === phase
+                        ? 'bg-white/20 text-white'
+                        : 'bg-primary-navy/20 text-primary-navy'
+                    }`}
+                    title={`${executionCount}회 실행됨`}
+                  >
+                    {executionCount}회
+                  </span>
+                )}
                 {isValidated === true && (
                   <span className="text-green-500" title="검증 성공">✓</span>
                 )}
@@ -183,156 +197,218 @@ function RawResult({ result }: { result: any }) {
 
 // Phase 1: Normalization
 function Phase1Formatted({ data }: { data: any }) {
+  if (!data) return <div className="text-neutral-warmGray">데이터가 없습니다.</div>
+
   return (
     <div className="space-y-4">
-      <Section title="좌표계">
-        <Item label="원점" value={`(${data.coordinateSystem.origin.x}, ${data.coordinateSystem.origin.y})`} />
-        <Item label="스케일" value={`${data.coordinateSystem.scale.pixelsPerMeter} px/m`} />
-        <Item label="단위" value={data.coordinateSystem.scale.detectedUnit} />
-        <Item label="회전" value={`${data.coordinateSystem.rotation}°`} />
-      </Section>
+      {data.coordinateSystem && (
+        <Section title="좌표계">
+          {data.coordinateSystem.origin && (
+            <Item label="원점" value={`(${data.coordinateSystem.origin.x ?? 0}, ${data.coordinateSystem.origin.y ?? 0})`} />
+          )}
+          {data.coordinateSystem.scale && (
+            <>
+              <Item label="스케일" value={`${data.coordinateSystem.scale.pixelsPerMeter ?? 'N/A'} px/m`} />
+              <Item label="단위" value={data.coordinateSystem.scale.detectedUnit ?? 'N/A'} />
+            </>
+          )}
+          <Item label="회전" value={`${data.coordinateSystem.rotation ?? 0}°`} />
+        </Section>
+      )}
 
-      <Section title="도면 범위">
-        <Item label="좌상단" value={`(${data.floorPlanBounds.topLeft.x}, ${data.floorPlanBounds.topLeft.y})`} />
-        <Item label="우하단" value={`(${data.floorPlanBounds.bottomRight.x}, ${data.floorPlanBounds.bottomRight.y})`} />
-      </Section>
+      {data.floorPlanBounds && (
+        <Section title="도면 범위">
+          {data.floorPlanBounds.topLeft && (
+            <Item label="좌상단" value={`(${data.floorPlanBounds.topLeft.x ?? 0}, ${data.floorPlanBounds.topLeft.y ?? 0})`} />
+          )}
+          {data.floorPlanBounds.bottomRight && (
+            <Item label="우하단" value={`(${data.floorPlanBounds.bottomRight.x ?? 0}, ${data.floorPlanBounds.bottomRight.y ?? 0})`} />
+          )}
+        </Section>
+      )}
 
-      <Section title="메타데이터">
-        <Item label="신뢰도" value={`${(data.metadata.confidence * 100).toFixed(1)}%`} />
-        {data.metadata.detectedFloorLevel && (
-          <Item label="층" value={data.metadata.detectedFloorLevel} />
-        )}
-      </Section>
+      {data.metadata && (
+        <Section title="메타데이터">
+          <Item label="신뢰도" value={`${((data.metadata.confidence ?? 0) * 100).toFixed(1)}%`} />
+          {data.metadata.detectedFloorLevel && (
+            <Item label="층" value={data.metadata.detectedFloorLevel} />
+          )}
+        </Section>
+      )}
+
+      {!data.coordinateSystem && !data.floorPlanBounds && !data.metadata && (
+        <div className="text-neutral-warmGray">구조화된 데이터가 없습니다. Raw JSON 모드로 확인하세요.</div>
+      )}
     </div>
   )
 }
 
 // Phase 2: Structure
 function Phase2Formatted({ data }: { data: any }) {
+  if (!data) return <div className="text-neutral-warmGray">데이터가 없습니다.</div>
+
   return (
     <div className="space-y-4">
-      <Section title="벽">
-        <Item label="총 개수" value={data.metadata.totalWalls} />
-        <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
-          {data.walls.slice(0, 5).map((wall: any, idx: number) => (
-            <div key={wall.id} className="text-xs bg-neutral-warmGray/5 p-2 rounded">
-              <div className="font-medium">{wall.id}</div>
-              <div className="text-neutral-warmGray">
-                {wall.type} • 두께: {wall.thickness}m
+      {data.walls && Array.isArray(data.walls) && (
+        <Section title="벽">
+          <Item label="총 개수" value={data.metadata?.totalWalls ?? data.walls.length} />
+          <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
+            {data.walls.slice(0, 5).map((wall: any, idx: number) => (
+              <div key={wall?.id ?? idx} className="text-xs bg-neutral-warmGray/5 p-2 rounded">
+                <div className="font-medium">{wall?.id ?? `Wall ${idx + 1}`}</div>
+                <div className="text-neutral-warmGray">
+                  {wall?.type ?? 'Unknown'} • 두께: {wall?.thickness ?? 'N/A'}m
+                </div>
               </div>
-            </div>
-          ))}
-          {data.walls.length > 5 && (
-            <div className="text-xs text-neutral-warmGray">
-              외 {data.walls.length - 5}개...
-            </div>
-          )}
-        </div>
-      </Section>
-
-      {data.columns && data.columns.length > 0 && (
-        <Section title="기둥">
-          <Item label="총 개수" value={data.metadata.totalColumns} />
+            ))}
+            {data.walls.length > 5 && (
+              <div className="text-xs text-neutral-warmGray">
+                외 {data.walls.length - 5}개...
+              </div>
+            )}
+          </div>
         </Section>
       )}
 
-      <Section title="메타데이터">
-        <Item label="신뢰도" value={`${(data.metadata.confidence * 100).toFixed(1)}%`} />
-      </Section>
+      {data.columns && Array.isArray(data.columns) && data.columns.length > 0 && (
+        <Section title="기둥">
+          <Item label="총 개수" value={data.metadata?.totalColumns ?? data.columns.length} />
+        </Section>
+      )}
+
+      {data.metadata && (
+        <Section title="메타데이터">
+          <Item label="신뢰도" value={`${((data.metadata.confidence ?? 0) * 100).toFixed(1)}%`} />
+        </Section>
+      )}
     </div>
   )
 }
 
 // Phase 3: Openings
 function Phase3Formatted({ data }: { data: any }) {
+  if (!data) return <div className="text-neutral-warmGray">데이터가 없습니다.</div>
+
   return (
     <div className="space-y-4">
-      <Section title="문">
-        <Item label="총 개수" value={data.metadata.totalDoors} />
-      </Section>
+      {data.metadata && (
+        <>
+          <Section title="문">
+            <Item label="총 개수" value={data.metadata.totalDoors ?? 0} />
+          </Section>
 
-      <Section title="창문">
-        <Item label="총 개수" value={data.metadata.totalWindows} />
-      </Section>
+          <Section title="창문">
+            <Item label="총 개수" value={data.metadata.totalWindows ?? 0} />
+          </Section>
 
-      <Section title="메타데이터">
-        <Item label="신뢰도" value={`${(data.metadata.confidence * 100).toFixed(1)}%`} />
-      </Section>
+          <Section title="메타데이터">
+            <Item label="신뢰도" value={`${((data.metadata.confidence ?? 0) * 100).toFixed(1)}%`} />
+          </Section>
+        </>
+      )}
+
+      {!data.metadata && (
+        <div className="text-neutral-warmGray">메타데이터가 없습니다.</div>
+      )}
     </div>
   )
 }
 
 // Phase 4: Spaces
 function Phase4Formatted({ data }: { data: any }) {
+  if (!data) return <div className="text-neutral-warmGray">데이터가 없습니다.</div>
+
   return (
     <div className="space-y-4">
-      <Section title="공간">
-        <Item label="총 개수" value={data.metadata.totalSpaces} />
-        <Item label="총 면적" value={`${data.metadata.totalArea.toFixed(2)} m²`} />
-        <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
-          {data.spaces.map((space: any) => (
-            <div key={space.id} className="text-xs bg-neutral-warmGray/5 p-2 rounded">
-              <div className="font-medium">{space.name}</div>
-              <div className="text-neutral-warmGray">
-                {space.type} • {space.area.toFixed(2)} m²
+      {data.spaces && Array.isArray(data.spaces) && (
+        <Section title="공간">
+          <Item label="총 개수" value={data.metadata?.totalSpaces ?? data.spaces.length} />
+          <Item label="총 면적" value={`${(data.metadata?.totalArea ?? 0).toFixed(2)} m²`} />
+          <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
+            {data.spaces.map((space: any, idx: number) => (
+              <div key={space?.id ?? idx} className="text-xs bg-neutral-warmGray/5 p-2 rounded">
+                <div className="font-medium">{space?.name ?? `Space ${idx + 1}`}</div>
+                <div className="text-neutral-warmGray">
+                  {space?.type ?? 'Unknown'} • {(space?.area ?? 0).toFixed(2)} m²
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </Section>
+            ))}
+          </div>
+        </Section>
+      )}
 
-      <Section title="메타데이터">
-        <Item label="신뢰도" value={`${(data.metadata.confidence * 100).toFixed(1)}%`} />
-      </Section>
+      {data.metadata && (
+        <Section title="메타데이터">
+          <Item label="신뢰도" value={`${((data.metadata.confidence ?? 0) * 100).toFixed(1)}%`} />
+        </Section>
+      )}
     </div>
   )
 }
 
 // Phase 5: Dimensions
 function Phase5Formatted({ data }: { data: any }) {
+  if (!data) return <div className="text-neutral-warmGray">데이터가 없습니다.</div>
+
   return (
     <div className="space-y-4">
-      <Section title="치수">
-        <Item label="벽" value={`${data.dimensions.walls.length}개`} />
-        <Item label="공간" value={`${data.dimensions.spaces.length}개`} />
-        <Item label="개구부" value={`${data.dimensions.openings.length}개`} />
-      </Section>
+      {data.dimensions && (
+        <Section title="치수">
+          <Item label="벽" value={`${data.dimensions.walls?.length ?? 0}개`} />
+          <Item label="공간" value={`${data.dimensions.spaces?.length ?? 0}개`} />
+          <Item label="개구부" value={`${data.dimensions.openings?.length ?? 0}개`} />
+        </Section>
+      )}
 
-      <Section title="메타데이터">
-        <Item label="단위" value={data.metadata.unit} />
-        <Item label="신뢰도" value={`${(data.metadata.confidence * 100).toFixed(1)}%`} />
-      </Section>
+      {data.metadata && (
+        <Section title="메타데이터">
+          <Item label="단위" value={data.metadata.unit ?? 'N/A'} />
+          <Item label="신뢰도" value={`${((data.metadata.confidence ?? 0) * 100).toFixed(1)}%`} />
+        </Section>
+      )}
     </div>
   )
 }
 
 // Phase 6: Master JSON (기존 Phase 7 승격)
 function Phase6Formatted({ data }: { data: any }) {
+  if (!data) return <div className="text-neutral-warmGray">데이터가 없습니다.</div>
+
   return (
     <div className="space-y-4">
-      <Section title="프로젝트">
-        {data.metadata.projectName && (
-          <Item label="이름" value={data.metadata.projectName} />
-        )}
-        <Item label="버전" value={data.metadata.version} />
-        <Item label="생성일" value={new Date(data.metadata.createdAt).toLocaleString('ko-KR')} />
-      </Section>
+      {data.metadata && (
+        <Section title="프로젝트">
+          {data.metadata.projectName && (
+            <Item label="이름" value={data.metadata.projectName} />
+          )}
+          <Item label="버전" value={data.metadata.version ?? 'N/A'} />
+          {data.metadata.createdAt && (
+            <Item label="생성일" value={new Date(data.metadata.createdAt).toLocaleString('ko-KR')} />
+          )}
+        </Section>
+      )}
 
-      <Section title="건물 요소">
-        <Item label="벽" value={`${data.building.walls.length}개`} />
-        <Item label="문" value={`${data.building.doors.length}개`} />
-        <Item label="창문" value={`${data.building.windows.length}개`} />
-        <Item label="공간" value={`${data.building.spaces.length}개`} />
-      </Section>
+      {data.building && (
+        <Section title="건물 요소">
+          <Item label="벽" value={`${data.building.walls?.length ?? 0}개`} />
+          <Item label="문" value={`${data.building.doors?.length ?? 0}개`} />
+          <Item label="창문" value={`${data.building.windows?.length ?? 0}개`} />
+          <Item label="공간" value={`${data.building.spaces?.length ?? 0}개`} />
+        </Section>
+      )}
 
-      <Section title="치수">
-        <Item label="총 면적" value={`${data.dimensions.totalArea.toFixed(2)} m²`} />
-        <Item label="벽 길이" value={`${data.dimensions.wallLength.toFixed(2)} m`} />
-      </Section>
+      {data.dimensions && (
+        <Section title="치수">
+          <Item label="총 면적" value={`${(data.dimensions.totalArea ?? 0).toFixed(2)} m²`} />
+          <Item label="벽 길이" value={`${(data.dimensions.wallLength ?? 0).toFixed(2)} m`} />
+        </Section>
+      )}
 
-      <Section title="검증">
-        <Item label="신뢰도" value={`${(data.verification.confidence * 100).toFixed(1)}%`} />
-      </Section>
+      {data.verification && (
+        <Section title="검증">
+          <Item label="신뢰도" value={`${((data.verification.confidence ?? 0) * 100).toFixed(1)}%`} />
+        </Section>
+      )}
     </div>
   )
 }

@@ -30,6 +30,7 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     setExecuting,
     setError,
     canExecutePhase,
+    incrementExecutionCount,
   } = usePipelineStore()
 
   // 파생 상태: results, executing, errors에서 phaseStatuses 계산
@@ -102,6 +103,9 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
       // 결과 저장 (메타데이터 포함)
       setPhaseResult(phaseNumber, data.result, data.metadata)
       setExecuting(phaseNumber, false)
+
+      // 실행 횟수 증가
+      incrementExecutionCount(phaseNumber)
 
       return data.result
     } catch (error) {
