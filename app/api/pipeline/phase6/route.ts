@@ -9,7 +9,7 @@
  */
 
 // Vercel Serverless Function 타임아웃 설정
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server'

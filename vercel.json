@@ -14,7 +14,7 @@
   },
   "functions": {
     "app/api/pipeline/phase[1-7]/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "app/api/admin/prompts/route.ts": {
       "maxDuration": 30
