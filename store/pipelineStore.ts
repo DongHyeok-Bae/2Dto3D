@@ -9,6 +9,28 @@ import type {
   MasterJSON,
 } from '@/types'
 
+// Phase 의존성 정의
+export const PHASE_DEPENDENCIES: Record<number, number[]> = {
+  1: [],              // 의존성 없음 (이미지만 필요)
+  2: [1],             // Phase 1 필요
+  3: [1, 2],          // Phase 1-2 필요
+  4: [1, 2, 3],       // Phase 1-3 필요
+  5: [1, 2, 3, 4],    // Phase 1-4 필요
+  6: [1, 2, 3, 4, 5], // Phase 1-5 필요 (이미지 불필요)
+}
+
+// 이미지가 필요한 Phase 목록
+export const PHASES_REQUIRING_IMAGE = [1, 2, 3, 4, 5]
+
+// 선수 조건 상태 인터페이스
+export interface PrerequisiteStatus {
+  canExecute: boolean
+  completedPrereqs: number[]
+  missingPrereqs: number[]
+  requiresImage: boolean
+  hasImage: boolean
+}
+
 // Phase 결과 메타데이터 인터페이스
 export interface PhaseMetadata {
   validated?: boolean // 검증 성공 여부
@@ -61,6 +83,10 @@ interface PipelineState {
   resetFromPhase: (phase: number) => void
   initSession: () => void
   clearAll: () => void
+
+  // 선수 조건 체크 함수
+  canExecutePhase: (phaseNumber: number) => boolean
+  getPrerequisiteStatus: (phaseNumber: number) => PrerequisiteStatus
 }
 
 const initialState = {
@@ -76,7 +102,7 @@ const initialState = {
 
 export const usePipelineStore = create<PipelineState>()(
   persist(
-    set => ({
+    (set, get) => ({
       ...initialState,
       metadata: {},
 
@@ -136,19 +162,67 @@ export const usePipelineStore = create<PipelineState>()(
         set(state => {
           const newResults = { ...state.results }
           const newMetadata = { ...state.metadata }
+          const newErrors = { ...state.errors }
+          const newExecuting = { ...state.executing }
 
           // phase부터 이후 결과 모두 삭제 (6단계 파이프라인)
           for (let i = phase; i <= 6; i++) {
             delete newResults[`phase${i}` as keyof typeof newResults]
             delete newMetadata[`phase${i}` as keyof typeof newMetadata]
+            newErrors[i] = null
+            newExecuting[i] = false
           }
 
           return {
             results: newResults,
             metadata: newMetadata,
+            errors: newErrors,
+            executing: newExecuting,
             currentPhase: phase - 1,
           }
         }),
+
+      // 선수 조건 체크: 해당 Phase를 실행할 수 있는지 확인
+      canExecutePhase: (phaseNumber: number) => {
+        const state = get()
+        const dependencies = PHASE_DEPENDENCIES[phaseNumber] || []
+
+        // 모든 선수 Phase가 완료되었는지 확인
+        const allPrereqsCompleted = dependencies.every(dep => {
+          const phaseKey = `phase${dep}` as keyof typeof state.results
+          return state.results[phaseKey] !== undefined
+        })
+
+        // 이미지 필요 여부 확인
+        const requiresImage = PHASES_REQUIRING_IMAGE.includes(phaseNumber)
+        const hasImage = !!state.uploadedImage
+
+        return allPrereqsCompleted && (!requiresImage || hasImage)
+      },
+
+      // 선수 조건 상세 상태 조회
+      getPrerequisiteStatus: (phaseNumber: number): PrerequisiteStatus => {
+        const state = get()
+        const dependencies = PHASE_DEPENDENCIES[phaseNumber] || []
+
+        const completedPrereqs = dependencies.filter(dep => {
+          const phaseKey = `phase${dep}` as keyof typeof state.results
+          return state.results[phaseKey] !== undefined
+        })
+
+        const missingPrereqs = dependencies.filter(dep => !completedPrereqs.includes(dep))
+
+        const requiresImage = PHASES_REQUIRING_IMAGE.includes(phaseNumber)
+        const hasImage = !!state.uploadedImage
+
+        return {
+          canExecute: missingPrereqs.length === 0 && (!requiresImage || hasImage),
+          completedPrereqs,
+          missingPrereqs,
+          requiresImage,
+          hasImage,
+        }
+      },
     }),
     {
       name: 'pipeline-storage',

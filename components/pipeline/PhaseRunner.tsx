@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { usePipelineStore } from '@/store/pipelineStore'
+import { usePipelineStore, PHASE_DEPENDENCIES } from '@/store/pipelineStore'
 
 interface PhaseRunnerProps {
   imageBase64: string
@@ -29,6 +29,7 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     errors: storeErrors,
     setExecuting,
     setError,
+    canExecutePhase,
   } = usePipelineStore()
 
   // 파생 상태: results, executing, errors에서 phaseStatuses 계산
@@ -227,6 +228,29 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
               </div>
               <p className="text-sm text-neutral-warmGray">{phase.description}</p>
 
+              {/* 선수 조건 체크마크 */}
+              {PHASE_DEPENDENCIES[phase.number]?.length > 0 && (
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-xs text-neutral-warmGray mr-1">선수조건:</span>
+                  {PHASE_DEPENDENCIES[phase.number].map(dep => {
+                    const phaseKey = `phase${dep}` as keyof typeof results
+                    const isCompleted = !!results[phaseKey]
+                    return (
+                      <span
+                        key={dep}
+                        className={`text-xs px-1.5 py-0.5 rounded ${
+                          isCompleted
+                            ? 'bg-accent-emerald/20 text-accent-emerald'
+                            : 'bg-neutral-warmGray/20 text-neutral-warmGray'
+                        }`}
+                      >
+                        P{dep} {isCompleted ? '✓' : '○'}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+
               {/* Error Message */}
               {storeErrors[phase.number] && (
                 <p className="text-sm text-red-600 mt-1">{storeErrors[phase.number]}</p>
@@ -236,10 +260,19 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
             {/* Action Button */}
             <button
               onClick={() => runSinglePhase(phase.number)}
-              disabled={isRunning}
-              className="btn-secondary text-sm"
+              disabled={!canExecutePhase(phase.number) || isRunning}
+              className={`btn-secondary text-sm ${
+                !canExecutePhase(phase.number) && !isRunning
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
+              }`}
+              title={
+                !canExecutePhase(phase.number)
+                  ? '선수 Phase를 먼저 실행하세요'
+                  : undefined
+              }
             >
-              단독 실행
+              {phaseStatuses[phase.number] === 'completed' ? '재실행' : '단독 실행'}
             </button>
           </div>
         ))}
