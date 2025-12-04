@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
+import { OrbitControls, PerspectiveCamera, Bounds, useBounds } from '@react-three/drei'
 import * as THREE from 'three'
 import { buildSceneFromMasterJSON, addLights, addGridHelper, addAxesHelper } from '@/lib/three/sceneBuilder'
 import { downloadSceneCapture } from '@/lib/export/modelExport'
@@ -89,12 +89,13 @@ export default function Viewer3D({
           setCamera(camera)
         }}
       >
-        <PerspectiveCamera makeDefault position={[10, 10, 10]} />
+        <PerspectiveCamera makeDefault position={[20, 20, 20]} fov={50} />
         <OrbitControls
+          makeDefault
           enableDamping
           dampingFactor={0.05}
-          minDistance={5}
-          maxDistance={50}
+          minDistance={1}
+          maxDistance={200}
           maxPolarAngle={Math.PI / 2}
         />
 
@@ -250,7 +251,56 @@ function Scene({
   sceneRef: React.MutableRefObject<THREE.Group | null>
   onObjectClick: (object: any) => void
 }) {
+  return (
+    <>
+      {/* 조명 */}
+      <ambientLight intensity={0.6} />
+      <directionalLight
+        position={[10, 20, 10]}
+        intensity={0.8}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+      />
+      <hemisphereLight args={[0xb1e1ff, 0xb97a20, 0.3]} />
+
+      {/* 그리드 - 크기 확대 */}
+      {showGrid && <gridHelper args={[50, 50, 0x888888, 0xcccccc]} />}
+
+      {/* 축 - 크기 확대 */}
+      {showAxes && <axesHelper args={[10]} />}
+
+      {/* 모델 + 자동 포커싱 */}
+      <Bounds fit clip observe margin={1.5}>
+        <ModelGroup
+          masterJSON={masterJSON}
+          showSpaces={showSpaces}
+          showFloor={showFloor}
+          wireframe={wireframe}
+          sceneRef={sceneRef}
+          onObjectClick={onObjectClick}
+        />
+      </Bounds>
+    </>
+  )
+}
+
+function ModelGroup({
+  masterJSON,
+  showSpaces,
+  showFloor,
+  wireframe,
+  sceneRef,
+  onObjectClick,
+}: {
+  masterJSON: MasterJSON
+  showSpaces: boolean
+  showFloor: boolean
+  wireframe: boolean
+  sceneRef: React.MutableRefObject<THREE.Group | null>
+  onObjectClick: (object: any) => void
+}) {
   const groupRef = useRef<THREE.Group>(null)
+  const bounds = useBounds()
 
   useEffect(() => {
     if (groupRef.current) {
@@ -268,35 +318,22 @@ function Scene({
 
       groupRef.current.add(scene)
       sceneRef.current = scene
+
+      // 모델 변경 시 카메라 자동 포커싱
+      setTimeout(() => {
+        if (groupRef.current) {
+          bounds.refresh(groupRef.current).clip().fit()
+        }
+      }, 100)
     }
-  }, [masterJSON, showSpaces, showFloor, wireframe])
+  }, [masterJSON, showSpaces, showFloor, wireframe, bounds, sceneRef])
 
   const handleClick = (event: any) => {
+    event.stopPropagation()
     if (event.object.userData.type) {
       onObjectClick(event.object.userData)
     }
   }
 
-  return (
-    <>
-      {/* 조명 */}
-      <ambientLight intensity={0.6} />
-      <directionalLight
-        position={[10, 20, 10]}
-        intensity={0.8}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-      />
-      <hemisphereLight args={[0xb1e1ff, 0xb97a20, 0.3]} />
-
-      {/* 그리드 */}
-      {showGrid && <gridHelper args={[20, 20, 0x888888, 0xcccccc]} />}
-
-      {/* 축 */}
-      {showAxes && <axesHelper args={[5]} />}
-
-      {/* 모델 */}
-      <group ref={groupRef} onClick={handleClick} />
-    </>
-  )
+  return <group ref={groupRef} onClick={handleClick} />
 }

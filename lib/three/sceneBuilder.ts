@@ -7,6 +7,9 @@
 import * as THREE from 'three'
 import type { MasterJSON } from '@/types'
 
+// mm → m 변환 상수 (Master JSON은 mm 단위)
+const MM_TO_M = 0.001
+
 // 색상 팔레트
 const COLORS = {
   wall: {
@@ -88,8 +91,8 @@ export function buildSceneFromMasterJSON(
     spaces.forEach(space => group.add(space))
   }
 
-  // 중심점으로 이동
-  centerGroup(group)
+  // 중심점 이동은 Bounds 컴포넌트가 처리하므로 제거
+  // centerGroup(group)
 
   return group
 }
@@ -98,22 +101,25 @@ export function buildSceneFromMasterJSON(
  * 바닥 생성
  */
 function createFloor(masterJSON: MasterJSON): THREE.Mesh | null {
-  // 벽 데이터에서 대략적인 면적 계산
+  // 벽 데이터에서 대략적인 면적 계산 (mm → m 변환, z 좌표 사용)
   const walls = masterJSON.components?.walls || []
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity
   walls.forEach((wall: any) => {
     const { start, end } = wall
-    minX = Math.min(minX, start.x, end.x)
-    maxX = Math.max(maxX, start.x, end.x)
-    minY = Math.min(minY, start.y, end.y)
-    maxY = Math.max(maxY, start.y, end.y)
+    // mm → m 변환, z를 깊이로 사용
+    minX = Math.min(minX, start.x * MM_TO_M, end.x * MM_TO_M)
+    maxX = Math.max(maxX, start.x * MM_TO_M, end.x * MM_TO_M)
+    minZ = Math.min(minZ, start.z * MM_TO_M, end.z * MM_TO_M)
+    maxZ = Math.max(maxZ, start.z * MM_TO_M, end.z * MM_TO_M)
   })
-  const totalArea = walls.length > 0 ? (maxX - minX) * (maxY - minY) : 100
 
-  // 대략적인 바닥 크기 계산
-  const size = Math.sqrt(totalArea) * 1.5
+  // 바닥 크기 계산 (미터 단위)
+  const width = walls.length > 0 ? (maxX - minX) : 10
+  const depth = walls.length > 0 ? (maxZ - minZ) : 10
+  const centerX = (minX + maxX) / 2
+  const centerZ = (minZ + maxZ) / 2
 
-  const geometry = new THREE.PlaneGeometry(size, size)
+  const geometry = new THREE.PlaneGeometry(width * 1.2, depth * 1.2)
   const material = new THREE.MeshStandardMaterial({
     color: COLORS.floor,
     side: THREE.DoubleSide,
@@ -123,7 +129,7 @@ function createFloor(masterJSON: MasterJSON): THREE.Mesh | null {
 
   const floor = new THREE.Mesh(geometry, material)
   floor.rotation.x = -Math.PI / 2
-  floor.position.y = 0
+  floor.position.set(centerX, 0, centerZ)
   floor.receiveShadow = true
   floor.name = 'Floor'
 
@@ -144,17 +150,25 @@ function createWalls(
     const { start, end, thickness } = wall
     const type = 'exterior' // MasterJSON walls에 type 없음, 기본값 사용
 
+    // mm → m 변환, z를 깊이로 사용
+    const startX = start.x * MM_TO_M
+    const startZ = start.z * MM_TO_M
+    const endX = end.x * MM_TO_M
+    const endZ = end.z * MM_TO_M
+
     // 벽 길이 및 방향 계산
-    const dx = end.x - start.x
-    const dy = end.y - start.y
-    const length = Math.sqrt(dx * dx + dy * dy)
-    const angle = Math.atan2(dy, dx)
+    const dx = endX - startX
+    const dz = endZ - startZ
+    const length = Math.sqrt(dx * dx + dz * dz)
+    const angle = Math.atan2(dz, dx)
 
-    // 벽 높이 (wall.height 또는 기본값)
-    const height = wall.height || defaultHeight
+    // 벽 높이 (wall.height는 mm 단위, defaultHeight는 m 단위)
+    const wallHeight = wall.height ? wall.height * MM_TO_M : defaultHeight
+    // 벽 두께 (mm → m 변환)
+    const wallThickness = thickness ? thickness * MM_TO_M : 0.15
 
-    // BoxGeometry 생성
-    const boxGeometry = new THREE.BoxGeometry(length, height, thickness)
+    // BoxGeometry 생성 (미터 단위)
+    const boxGeometry = new THREE.BoxGeometry(length, wallHeight, wallThickness)
     const color = COLORS.wall[type as keyof typeof COLORS.wall] || COLORS.wall.interior
     const material = new THREE.MeshStandardMaterial({
       color,
@@ -163,8 +177,12 @@ function createWalls(
 
     const mesh = new THREE.Mesh(boxGeometry, material)
 
-    // 위치 및 회전 설정
-    mesh.position.set((start.x + end.x) / 2, height / 2, (start.y + end.y) / 2)
+    // 위치 및 회전 설정 (미터 단위)
+    mesh.position.set(
+      (startX + endX) / 2,
+      wallHeight / 2,
+      (startZ + endZ) / 2
+    )
     mesh.rotation.y = angle
 
     mesh.castShadow = true
@@ -204,14 +222,20 @@ function createDoors(
   masterJSON.components.openings.doors.forEach((door: any) => {
     const { position, width, height } = door
 
-    const geometry = new THREE.BoxGeometry(width, height, 0.05)
+    // mm → m 변환
+    const w = width * MM_TO_M
+    const h = height * MM_TO_M
+    const posX = position.x * MM_TO_M
+    const posZ = position.z * MM_TO_M  // y → z
+
+    const geometry = new THREE.BoxGeometry(w, h, 0.05)
     const material = new THREE.MeshStandardMaterial({
       color: COLORS.door,
       wireframe,
     })
 
     const mesh = new THREE.Mesh(geometry, material)
-    mesh.position.set(position.x, height / 2, position.y)
+    mesh.position.set(posX, h / 2, posZ)
 
     mesh.castShadow = true
     mesh.userData = { type: 'door', id: door.id, data: door }
@@ -236,7 +260,14 @@ function createWindows(
   masterJSON.components.openings.windows.forEach((window: any) => {
     const { position, width, height, sillHeight } = window
 
-    const geometry = new THREE.BoxGeometry(width, height, 0.03)
+    // mm → m 변환
+    const w = width * MM_TO_M
+    const h = height * MM_TO_M
+    const sill = (sillHeight || 900) * MM_TO_M  // 기본 900mm
+    const posX = position.x * MM_TO_M
+    const posZ = position.z * MM_TO_M  // y → z
+
+    const geometry = new THREE.BoxGeometry(w, h, 0.03)
     const material = new THREE.MeshStandardMaterial({
       color: COLORS.window,
       transparent: true,
@@ -245,8 +276,8 @@ function createWindows(
     })
 
     const mesh = new THREE.Mesh(geometry, material)
-    const yPos = (sillHeight || 1.0) + height / 2
-    mesh.position.set(position.x, yPos, position.y)
+    const yPos = sill + h / 2
+    mesh.position.set(posX, yPos, posZ)
 
     mesh.castShadow = true
     mesh.userData = { type: 'window', id: window.id, data: window }
@@ -267,13 +298,15 @@ function createSpaces(masterJSON: MasterJSON, wireframe: boolean): THREE.Mesh[] 
   masterJSON.components.spaces.forEach((space: any) => {
     const { boundary, type } = space
 
-    // Shape 생성
+    // Shape 생성 (mm → m 변환, z를 깊이로 사용)
     const shape = new THREE.Shape()
     boundary.forEach((point: any, index: number) => {
+      const x = point.x * MM_TO_M
+      const z = point.z * MM_TO_M  // y → z
       if (index === 0) {
-        shape.moveTo(point.x, point.y)
+        shape.moveTo(x, z)
       } else {
-        shape.lineTo(point.x, point.y)
+        shape.lineTo(x, z)
       }
     })
     shape.closePath()
