@@ -1,7 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
+
+// Seeded random for consistent values
+function seededRandom(seed: number) {
+  const x = Math.sin(seed) * 10000
+  return x - Math.floor(x)
+}
 
 export default function BlueprintGrid() {
   const [mounted, setMounted] = useState(false)
@@ -9,6 +15,21 @@ export default function BlueprintGrid() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Pre-compute particle data only on client
+  const particles = useMemo(() => {
+    if (!mounted) return []
+    return Array.from({ length: 20 }, (_, i) => {
+      const seed = i * 7000
+      return {
+        id: i,
+        left: seededRandom(seed + 1) * 100,
+        top: seededRandom(seed + 2) * 100,
+        duration: 3 + seededRandom(seed + 3) * 2,
+        delay: seededRandom(seed + 4) * 3,
+      }
+    })
+  }, [mounted])
 
   if (!mounted) return null
 
@@ -104,39 +125,14 @@ export default function BlueprintGrid() {
           />
         ))}
 
-        {/* Corner Markers */}
+        {/* Corner Markers - Top Left only (others handled via CSS) */}
         <motion.g
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.5, duration: 0.5 }}
         >
-          {/* Top Left */}
           <path
             d="M 30 50 L 30 30 L 50 30"
-            fill="none"
-            stroke="#C5A059"
-            strokeWidth="2"
-            filter="url(#glow)"
-          />
-          {/* Top Right */}
-          <path
-            d="M calc(100% - 30px) 50 L calc(100% - 30px) 30 L calc(100% - 50px) 30"
-            fill="none"
-            stroke="#C5A059"
-            strokeWidth="2"
-            filter="url(#glow)"
-          />
-          {/* Bottom Left */}
-          <path
-            d="M 30 calc(100% - 50px) L 30 calc(100% - 30px) L 50 calc(100% - 30px)"
-            fill="none"
-            stroke="#C5A059"
-            strokeWidth="2"
-            filter="url(#glow)"
-          />
-          {/* Bottom Right */}
-          <path
-            d="M calc(100% - 30px) calc(100% - 50px) L calc(100% - 30px) calc(100% - 30px) L calc(100% - 50px) calc(100% - 30px)"
             fill="none"
             stroke="#C5A059"
             strokeWidth="2"
@@ -194,27 +190,42 @@ export default function BlueprintGrid() {
 
       {/* Animated Particles */}
       <div className="absolute inset-0">
-        {[...Array(20)].map((_, i) => (
+        {particles.map((particle) => (
           <motion.div
-            key={i}
+            key={particle.id}
             className="absolute w-1 h-1 bg-primary-gold rounded-full"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: `${particle.left}%`,
+              top: `${particle.top}%`,
             }}
             animate={{
               opacity: [0, 0.6, 0],
               scale: [0, 1.5, 0],
             }}
             transition={{
-              duration: 3 + Math.random() * 2,
+              duration: particle.duration,
               repeat: Infinity,
-              delay: Math.random() * 3,
+              delay: particle.delay,
               ease: 'easeInOut',
             }}
           />
         ))}
       </div>
+
+      {/* CSS-based Corner Markers */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.5, duration: 0.5 }}
+        className="absolute inset-0 pointer-events-none"
+      >
+        {/* Top Right */}
+        <div className="absolute top-[30px] right-[30px] w-5 h-5 border-t-2 border-r-2 border-primary-gold" style={{ filter: 'drop-shadow(0 0 3px rgba(197, 160, 89, 0.6))' }} />
+        {/* Bottom Left */}
+        <div className="absolute bottom-[30px] left-[30px] w-5 h-5 border-b-2 border-l-2 border-primary-gold" style={{ filter: 'drop-shadow(0 0 3px rgba(197, 160, 89, 0.6))' }} />
+        {/* Bottom Right */}
+        <div className="absolute bottom-[30px] right-[30px] w-5 h-5 border-b-2 border-r-2 border-primary-gold" style={{ filter: 'drop-shadow(0 0 3px rgba(197, 160, 89, 0.6))' }} />
+      </motion.div>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 
@@ -11,6 +11,15 @@ interface AnimatedTitleProps {
 export default function AnimatedTitle({ onAnimationComplete }: AnimatedTitleProps) {
   const [showSubtitle, setShowSubtitle] = useState(false)
   const [typedText, setTypedText] = useState('')
+
+  // useRef로 콜백 함수 참조 안정화
+  const onAnimationCompleteRef = useRef(onAnimationComplete)
+  const hasCompletedRef = useRef(false)
+
+  // 콜백 함수가 변경될 때 ref 업데이트
+  useEffect(() => {
+    onAnimationCompleteRef.current = onAnimationComplete
+  }, [onAnimationComplete])
 
   const subtitle = '파편화된 2D 도면을 AI가 이해하고, 실시간 3D 모델로 변환합니다'
 
@@ -24,7 +33,7 @@ export default function AnimatedTitle({ onAnimationComplete }: AnimatedTitleProp
   }, [])
 
   useEffect(() => {
-    if (!showSubtitle) return
+    if (!showSubtitle || hasCompletedRef.current) return
 
     let index = 0
     const interval = setInterval(() => {
@@ -33,12 +42,15 @@ export default function AnimatedTitle({ onAnimationComplete }: AnimatedTitleProp
         index++
       } else {
         clearInterval(interval)
-        onAnimationComplete?.()
+        if (!hasCompletedRef.current) {
+          hasCompletedRef.current = true
+          onAnimationCompleteRef.current?.()
+        }
       }
     }, 40)
 
     return () => clearInterval(interval)
-  }, [showSubtitle, onAnimationComplete])
+  }, [showSubtitle])
 
   return (
     <div className="text-center">
