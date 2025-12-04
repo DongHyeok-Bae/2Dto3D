@@ -69,3 +69,173 @@
     @apply bg-gradient-to-br from-primary-crimson via-primary-navy to-primary-gold;
   }
 }
+
+/* Landing Page Animations */
+@keyframes draw-line {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    text-shadow: 0 0 10px currentColor;
+    filter: brightness(1);
+  }
+  50% {
+    text-shadow: 0 0 30px currentColor, 0 0 60px currentColor;
+    filter: brightness(1.2);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes bounce-arrow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(10px); }
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: currentColor; }
+}
+
+@keyframes grid-fade-in {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 500;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(197, 160, 89, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(197, 160, 89, 0.6), 0 0 40px rgba(197, 160, 89, 0.3);
+  }
+}
+
+@keyframes slide-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rotate-3d {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+.animate-draw-line {
+  animation: draw-line 2s ease-out forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-bounce-arrow {
+  animation: bounce-arrow 1.5s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-slide-in-up {
+  animation: slide-in-up 0.6s ease-out forwards;
+}
+
+/* Blueprint Grid Pattern */
+.blueprint-grid {
+  background-image:
+    linear-gradient(rgba(197, 160, 89, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(197, 160, 89, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Card 3D Tilt Effect */
+.card-tilt {
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+
+.card-tilt:hover {
+  transform: perspective(1000px) rotateY(5deg) rotateX(5deg);
+}
+
+/* Scroll Indicator */
+.scroll-indicator {
+  @apply absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/60;
+}
+
+/* Blueprint Button Style */
+.btn-blueprint {
+  @apply relative px-8 py-4 border-2 border-dashed border-primary-gold text-white font-medium
+         transition-all duration-300 overflow-hidden;
+  background: transparent;
+}
+
+.btn-blueprint::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-primary-crimson to-primary-gold opacity-0
+         transition-opacity duration-300;
+}
+
+.btn-blueprint:hover::before {
+  @apply opacity-100;
+}
+
+.btn-blueprint:hover {
+  @apply border-solid shadow-lg;
+  box-shadow: 0 0 20px rgba(197, 160, 89, 0.4);
+}
+
+.btn-blueprint span {
+  @apply relative z-10;
+}
+
+/* Corner Markers for Blueprint Style */
+.corner-markers {
+  @apply relative;
+}
+
+.corner-markers::before,
+.corner-markers::after {
+  content: '';
+  @apply absolute w-4 h-4 border-primary-gold;
+}
+
+.corner-markers::before {
+  @apply top-0 left-0 border-t-2 border-l-2;
+}
+
+.corner-markers::after {
+  @apply bottom-0 right-0 border-b-2 border-r-2;
+}
