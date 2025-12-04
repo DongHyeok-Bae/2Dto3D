@@ -40,6 +40,12 @@ export interface PhaseMetadata {
   [key: string]: any // 추가 메타데이터
 }
 
+// 파이프라인 에러 인터페이스
+export interface PipelineError {
+  phase: number // 에러가 발생한 Phase
+  message: string // 에러 메시지
+}
+
 interface PipelineState {
   // 세션 ID (새로고침 감지용)
   sessionId: string | null
@@ -73,6 +79,9 @@ interface PipelineState {
   executing: Record<number, boolean>
   errors: Record<number, string | null>
 
+  // 파이프라인 에러 (전체 실행 중 발생한 에러)
+  pipelineError: PipelineError | null
+
   // 실행 횟수 추적
   executionCounts: Record<number, number>
 
@@ -93,6 +102,12 @@ interface PipelineState {
 
   // 실행 횟수 증가
   incrementExecutionCount: (phase: number) => void
+
+  // 파이프라인 에러 관리
+  setPipelineError: (error: PipelineError | null) => void
+
+  // 마지막으로 완료된 Phase 번호 조회 (결과 기반 계산)
+  getLastCompletedPhase: () => number
 }
 
 const initialState = {
@@ -104,6 +119,7 @@ const initialState = {
   metadata: {},
   executing: {},
   errors: {},
+  pipelineError: null as PipelineError | null,
   executionCounts: {} as Record<number, number>,
 }
 
@@ -160,6 +176,25 @@ export const usePipelineStore = create<PipelineState>()(
             [phase]: (state.executionCounts[phase] || 0) + 1,
           },
         })),
+
+      setPipelineError: (error: PipelineError | null) =>
+        set({ pipelineError: error }),
+
+      getLastCompletedPhase: () => {
+        const { results } = get()
+        let lastCompleted = 0
+
+        for (let i = 1; i <= 6; i++) {
+          const phaseKey = `phase${i}` as keyof typeof results
+          if (results[phaseKey]) {
+            lastCompleted = i
+          } else {
+            break // 중간에 빈 결과가 있으면 중단
+          }
+        }
+
+        return lastCompleted
+      },
 
       reset: () => set(initialState),
 

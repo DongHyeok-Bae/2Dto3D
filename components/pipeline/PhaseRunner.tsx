@@ -31,6 +31,9 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     setError,
     canExecutePhase,
     incrementExecutionCount,
+    pipelineError,
+    setPipelineError,
+    getLastCompletedPhase,
   } = usePipelineStore()
 
   // 파생 상태: results, executing, errors에서 phaseStatuses 계산
@@ -51,6 +54,14 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     return statuses
   }, [results, executing, storeErrors])
 
+  // "이어서 실행" 버튼 표시 조건
+  const lastCompletedPhase = getLastCompletedPhase()
+  const totalPhases = 6
+  const showContinueButton =
+    !isRunning &&
+    lastCompletedPhase > 0 &&
+    lastCompletedPhase < totalPhases
+
   const runPhase = async (phaseNumber: number) => {
     setCurrentPhase(phaseNumber)
     setExecuting(phaseNumber, true)
@@ -66,23 +77,26 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
       }
 
       // Phase 2-5: 이전 결과 포함
+      // 중요: getState()를 사용하여 최신 상태를 가져옴 (클로저 문제 방지)
       if (phaseNumber >= 2 && phaseNumber <= 5) {
+        const currentResults = usePipelineStore.getState().results
         body.previousResults = {
-          phase1: results.phase1,
-          phase2: results.phase2,
-          phase3: results.phase3,
-          phase4: results.phase4,
+          phase1: currentResults.phase1,
+          phase2: currentResults.phase2,
+          phase3: currentResults.phase3,
+          phase4: currentResults.phase4,
         }
       }
 
       // Phase 6: Master JSON 생성 - Phase 1-5 결과 포함 (이미지 없음)
       if (phaseNumber === 6) {
+        const currentResults = usePipelineStore.getState().results
         body.allResults = {
-          phase1: results.phase1,
-          phase2: results.phase2,
-          phase3: results.phase3,
-          phase4: results.phase4,
-          phase5: results.phase5,
+          phase1: currentResults.phase1,
+          phase2: currentResults.phase2,
+          phase3: currentResults.phase3,
+          phase4: currentResults.phase4,
+          phase5: currentResults.phase5,
         }
         delete body.imageBase64 // Phase 6은 이미지 불필요
       }
@@ -116,30 +130,57 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     }
   }
 
-  const runAllPhases = async () => {
+  // 특정 Phase부터 실행하는 공통 함수
+  const runFromPhase = async (startPhase: number) => {
     setIsRunning(true)
-    // 모든 Phase 에러 초기화
-    for (let i = 1; i <= 6; i++) {
+    setPipelineError(null) // 파이프라인 에러 초기화
+
+    // 시작 Phase부터 에러 초기화
+    for (let i = startPhase; i <= 6; i++) {
       setError(i, null)
     }
 
+    let failedPhase = 0
+
     try {
-      for (let i = 1; i <= 6; i++) { // 6단계 파이프라인
+      for (let i = startPhase; i <= 6; i++) {
+        failedPhase = i
         await runPhase(i)
         // 각 Phase 사이에 약간의 딜레이 (UI 업데이트를 위해)
         await new Promise(resolve => setTimeout(resolve, 500))
       }
 
-      // 완료 콜백
+      // 전체 완료
       if (onComplete) {
-        onComplete(results)
+        onComplete(usePipelineStore.getState().results)
       }
     } catch (error) {
-      console.error('Pipeline execution failed:', error)
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'
+      // 에러 발생 Phase 기록
+      setPipelineError({
+        phase: failedPhase,
+        message: errorMessage,
+      })
+      console.error(`Pipeline execution failed at phase ${failedPhase}:`, error)
     } finally {
       setIsRunning(false)
       setCurrentPhase(0)
     }
+  }
+
+  // 전체 실행 (Phase 1부터)
+  const runAllPhases = async () => {
+    // Phase 1부터 실행할 때는 모든 에러 초기화
+    for (let i = 1; i <= 6; i++) {
+      setError(i, null)
+    }
+    await runFromPhase(1)
+  }
+
+  // 이어서 실행 (마지막 완료된 Phase 다음부터)
+  const handleContinue = async () => {
+    const lastCompleted = getLastCompletedPhase()
+    await runFromPhase(lastCompleted + 1)
   }
 
   const runSinglePhase = async (phaseNumber: number) => {
@@ -194,14 +235,49 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
         <h2 className="text-2xl font-serif font-bold text-primary-navy">
           AI 파이프라인 실행
         </h2>
-        <button
-          onClick={runAllPhases}
-          disabled={isRunning}
-          className="btn-primary"
-        >
-          {isRunning ? '실행 중...' : '전체 실행'}
-        </button>
+        <div className="flex gap-2">
+          {/* 전체 실행 버튼 */}
+          <button
+            onClick={runAllPhases}
+            disabled={isRunning}
+            className="btn-primary"
+          >
+            {isRunning ? '실행 중...' : '전체 실행'}
+          </button>
+
+          {/* 이어서 실행 버튼 - 조건부 렌더링 */}
+          {showContinueButton && (
+            <button
+              onClick={handleContinue}
+              disabled={isRunning}
+              className="btn-secondary"
+            >
+              Phase {lastCompletedPhase + 1}부터 이어서 실행
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* 파이프라인 에러 메시지 */}
+      {pipelineError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+          <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">
+              Phase {pipelineError.phase}에서 오류 발생
+            </p>
+            <p className="text-sm text-red-600 mt-0.5">
+              {pipelineError.message}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Phase List */}
       <div className="space-y-3">
