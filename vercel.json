@@ -5,7 +5,7 @@
   "installCommand": "npm install",
   "regions": ["icn1"],
   "env": {
-    "NEXT_PUBLIC_APP_URL": "https://2dto3d.vercel.app"
+    "NEXT_PUBLIC_APP_URL": "https://2dto3d-khu.kr"
   },
   "build": {
     "env": {

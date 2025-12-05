@@ -7,7 +7,7 @@ const nextConfig = {
 
   // 이미지 최적화
   images: {
-    domains: ['localhost', '2dto3d.vercel.app'],
+    domains: ['localhost', '2dto3d.vercel.app', '2dto3d-khu.kr'],
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
