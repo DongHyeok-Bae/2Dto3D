@@ -96,6 +96,42 @@ export const viewport: Viewport = {
   ],
 }
 
+// Google 검색 결과 로고를 위한 JSON-LD 구조화된 데이터
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: '2Dto3D',
+  url: process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app',
+  logo: {
+    '@type': 'ImageObject',
+    url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app'}/logo-crossover.png`,
+    width: 1200,
+    height: 630,
+  },
+  description: 'AI를 활용한 2D 건축 도면의 실시간 3D BIM 모델 변환 서비스',
+  founder: {
+    '@type': 'Organization',
+    name: '경희대학교 건축공학과',
+  },
+  sameAs: [],
+}
+
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: '2Dto3D',
+  url: process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app',
+  description: 'AI 기반 건축 도면 3D BIM 변환 서비스',
+  publisher: {
+    '@type': 'Organization',
+    name: '2Dto3D',
+    logo: {
+      '@type': 'ImageObject',
+      url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app'}/logo-crossover.png`,
+    },
+  },
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -103,6 +139,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" className={notoSerifKR.variable}>
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
+      </head>
       <body className="bg-neutral-marble text-neutral-charcoal font-sans antialiased">
         {children}
       </body>
