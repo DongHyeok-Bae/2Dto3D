@@ -16,7 +16,7 @@ import { NextRequest } from 'next/server'
 import { executePhase6 } from '@/lib/ai/gemini-client'
 import { validatePhaseResult } from '@/lib/validation/schemas'
 import { errorResponse, successResponse, ValidationError, GeminiError, PromptNotFoundError } from '@/lib/error/handlers'
-import { getLatestPrompt } from '@/lib/config/prompt-manager'
+import { getLatestPrompt, getActivePrompt } from '@/lib/config/prompt-manager'
 import { saveExecutionResult } from '@/lib/config/result-manager'
 import { initializeLocalPrompts } from '@/lib/config/prompt-loader'
 
@@ -41,7 +41,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 프롬프트 가져오기 (환경 자동 감지)
-    const promptData = await getLatestPrompt(6, promptVersion)
+    // 특정 버전이 지정되면 해당 버전, 아니면 활성 프롬프트 사용
+    let promptData
+    if (promptVersion && promptVersion !== 'latest') {
+      promptData = await getLatestPrompt(6, promptVersion)
+    } else {
+      const activePrompt = await getActivePrompt(6)
+      promptData = activePrompt ? { content: activePrompt.content, version: activePrompt.version } : null
+    }
 
     if (!promptData) {
       throw new PromptNotFoundError(6)

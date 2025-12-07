@@ -9,8 +9,46 @@ import { list } from '@vercel/blob'
 import fs from 'fs/promises'
 import path from 'path'
 
-// Note: uploadPrompt는 현재 blob-storage.ts에 정의되어 있지 않을 수 있음
-// 필요 시 직접 구현하거나 기존 함수 사용
+// Vercel Blob Storage에서 활성 버전을 추적하기 위한 마커 파일 경로
+const getActiveMarkerPath = (phaseNumber: number) => `prompts/phase${phaseNumber}/.active`
+
+/**
+ * Vercel Blob Storage에서 활성 버전 조회
+ */
+async function getActiveVersionFromMarker(phaseNumber: number): Promise<string | null> {
+  try {
+    const { blobs } = await list({ prefix: getActiveMarkerPath(phaseNumber) })
+    if (blobs.length === 0) return null
+
+    const response = await fetch(blobs[0].url)
+    if (!response.ok) return null
+
+    const version = (await response.text()).trim()
+    return version || null
+  } catch (error) {
+    console.warn(`[PromptManager] Failed to read active marker for Phase ${phaseNumber}:`, error)
+    return null
+  }
+}
+
+/**
+ * Vercel Blob Storage에 활성 버전 마커 저장
+ */
+async function setActiveVersionMarker(phaseNumber: number, version: string): Promise<boolean> {
+  try {
+    const { put } = await import('@vercel/blob')
+    await put(getActiveMarkerPath(phaseNumber), version, {
+      access: 'public',
+      addRandomSuffix: false,
+      contentType: 'text/plain',
+    })
+    console.log(`[PromptManager] Set active marker for Phase ${phaseNumber}: v${version}`)
+    return true
+  } catch (error) {
+    console.error(`[PromptManager] Failed to set active marker for Phase ${phaseNumber}:`, error)
+    return false
+  }
+}
 
 export interface PromptVersion {
   id: string
@@ -59,6 +97,16 @@ export async function savePrompt(
 
   if (env === 'local') {
     // 로컬: 메모리 저장소
+    // isActive: true로 저장할 경우, 다른 버전들은 비활성화
+    if (metadata.isActive) {
+      const existingPrompts = promptStorage.getByPhase(phaseNumber)
+      existingPrompts.forEach(p => {
+        if (p.isActive) {
+          p.isActive = false
+        }
+      })
+    }
+
     const key = promptStorage.save(phaseNumber, version, content, metadata)
     console.log(`[PromptManager] Saved to memory: ${key}`)
     return { key }
@@ -72,6 +120,11 @@ export async function savePrompt(
       addRandomSuffix: false,
       contentType: 'text/markdown',
     })
+
+    // isActive: true로 저장할 경우, 마커 파일 업데이트
+    if (metadata.isActive) {
+      await setActiveVersionMarker(phaseNumber, version)
+    }
 
     console.log(`[PromptManager] Saved to Blob: ${blob.url}`)
     return { url: blob.url }
@@ -91,9 +144,15 @@ export async function listPrompts(phaseNumber: number): Promise<PromptVersion[]>
     // Vercel: Blob Storage
     const { blobs } = await list({ prefix: `prompts/phase${phaseNumber}/` })
 
+    // 마커 파일에서 활성 버전 조회
+    const activeVersion = await getActiveVersionFromMarker(phaseNumber)
+
+    // .active 마커 파일 제외하고 필터링
+    const promptBlobs = blobs.filter(blob => !blob.pathname.endsWith('.active'))
+
     // Blob 메타데이터를 PromptVersion 형식으로 변환
-    return Promise.all(
-      blobs.map(async (blob) => {
+    const prompts = await Promise.all(
+      promptBlobs.map(async (blob) => {
         const response = await fetch(blob.url)
         const content = await response.text()
 
@@ -101,19 +160,40 @@ export async function listPrompts(phaseNumber: number): Promise<PromptVersion[]>
         const versionMatch = blob.pathname.match(/v(\d+\.\d+\.\d+)/)
         const version = versionMatch ? versionMatch[1] : '1.0.0'
 
+        // 마커 파일에 기록된 버전과 일치하면 활성화
+        // 마커가 없으면 첫 번째(가장 최신) 버전을 활성화
+        const isActive = activeVersion ? version === activeVersion : false
+
         return {
           id: blob.pathname,
           key: blob.pathname,
           phaseNumber,
           version,
           content,
-          isActive: true,
+          isActive,
           createdAt: new Date(blob.uploadedAt).toISOString(),
           updatedAt: new Date(blob.uploadedAt).toISOString(),
           url: blob.url,
         }
       })
     )
+
+    // 마커가 없고 프롬프트가 있으면 최신 버전을 활성화
+    if (!activeVersion && prompts.length > 0) {
+      // 버전 정렬하여 최신 찾기
+      const sorted = [...prompts].sort((a, b) => {
+        const vA = a.version.split('.').map(Number)
+        const vB = b.version.split('.').map(Number)
+        for (let i = 0; i < 3; i++) {
+          if (vA[i] > vB[i]) return -1
+          if (vA[i] < vB[i]) return 1
+        }
+        return 0
+      })
+      sorted[0].isActive = true
+    }
+
+    return prompts
   }
 }
 
@@ -315,30 +395,19 @@ export async function setActivePrompt(
     // 로컬: 메모리 저장소
     return promptStorage.setActiveVersion(phaseNumber, keyOrUrl)
   } else {
-    // Vercel: Blob Storage에서는 활성 상태를 별도 메타데이터로 관리하기 어려움
-    // 따라서 가장 최신 업로드된 파일이 활성으로 간주됨
-    // 활성화를 위해 파일을 다시 업로드하여 uploadedAt 갱신
+    // Vercel: .active 마커 파일에 활성 버전 기록
     try {
-      const response = await fetch(keyOrUrl)
-      if (!response.ok) {
-        return { success: false, error: 'Failed to fetch prompt' }
-      }
-      const content = await response.text()
-
-      // URL에서 phase와 버전 추출
+      // URL 또는 key에서 버전 추출
       const versionMatch = keyOrUrl.match(/v(\d+\.\d+\.\d+)/)
       const version = versionMatch ? versionMatch[1] : '1.0.0'
 
-      // 동일한 파일명으로 다시 업로드 (덮어쓰기로 시간 갱신)
-      const { put } = await import('@vercel/blob')
-      const fileName = `prompts/phase${phaseNumber}/v${version}.md`
-      await put(fileName, content, {
-        access: 'public',
-        addRandomSuffix: false,
-        contentType: 'text/markdown',
-      })
+      // 마커 파일 업데이트
+      const success = await setActiveVersionMarker(phaseNumber, version)
+      if (!success) {
+        return { success: false, error: 'Failed to update active marker' }
+      }
 
-      console.log(`[PromptManager] Activated in Blob: ${keyOrUrl}`)
+      console.log(`[PromptManager] Activated in Blob: Phase ${phaseNumber} v${version}`)
       return { success: true }
     } catch (error) {
       console.error('[PromptManager] Failed to activate prompt:', error)
@@ -358,15 +427,29 @@ export async function getActivePrompt(
   if (env === 'local') {
     // 로컬: isActive가 true인 프롬프트 반환
     const active = promptStorage.getActiveByPhase(phaseNumber)
-    return active
+    if (active) return active
+
+    // 활성 프롬프트가 없으면 최신 버전 반환 (fallback)
+    const latest = promptStorage.getLatestByPhase(phaseNumber)
+    return latest
   } else {
-    // Vercel: 가장 최신 업로드된 파일이 활성
+    // Vercel: 마커 파일 기반으로 활성 프롬프트 조회
     const prompts = await listPrompts(phaseNumber)
     if (prompts.length === 0) return null
 
-    // uploadedAt 기준 정렬 (가장 최신이 활성)
-    return prompts.sort((a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    )[0]
+    // isActive가 true인 프롬프트 반환
+    const active = prompts.find(p => p.isActive)
+    if (active) return active
+
+    // 활성 프롬프트가 없으면 최신 버전 반환 (fallback)
+    return prompts.sort((a, b) => {
+      const vA = a.version.split('.').map(Number)
+      const vB = b.version.split('.').map(Number)
+      for (let i = 0; i < 3; i++) {
+        if (vA[i] > vB[i]) return -1
+        if (vA[i] < vB[i]) return 1
+      }
+      return 0
+    })[0]
   }
 }
