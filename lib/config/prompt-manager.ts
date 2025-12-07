@@ -246,3 +246,127 @@ export async function deletePrompt(keyOrUrl: string): Promise<boolean> {
     return true
   }
 }
+
+/**
+ * 프롬프트 버전 수정
+ */
+export async function updatePromptVersion(
+  phaseNumber: number,
+  oldKeyOrUrl: string,
+  newVersion: string
+): Promise<{ success: boolean; newKey?: string; newUrl?: string; error?: string }> {
+  const env = getStorageEnvironment()
+
+  if (env === 'local') {
+    // 로컬: 메모리 저장소
+    const result = promptStorage.updateVersion(oldKeyOrUrl, newVersion)
+    return result
+  } else {
+    // Vercel: Blob Storage - 새 파일 생성 후 기존 삭제
+    try {
+      // 기존 콘텐츠 가져오기
+      const response = await fetch(oldKeyOrUrl)
+      if (!response.ok) {
+        return { success: false, error: 'Failed to fetch existing prompt' }
+      }
+      const content = await response.text()
+
+      // URL에서 phase 번호 추출 확인
+      const phaseMatch = oldKeyOrUrl.match(/phase(\d+)/)
+      const extractedPhase = phaseMatch ? parseInt(phaseMatch[1]) : phaseNumber
+
+      // 새 버전 URL 패턴 확인 (중복 체크)
+      const { blobs } = await list({ prefix: `prompts/phase${extractedPhase}/v${newVersion}` })
+      if (blobs.length > 0) {
+        return { success: false, error: 'Version already exists' }
+      }
+
+      // 새 파일 업로드
+      const { put, del } = await import('@vercel/blob')
+      const fileName = `prompts/phase${extractedPhase}/v${newVersion}.md`
+      const blob = await put(fileName, content, {
+        access: 'public',
+        addRandomSuffix: false,
+        contentType: 'text/markdown',
+      })
+
+      // 기존 파일 삭제
+      await del(oldKeyOrUrl)
+
+      console.log(`[PromptManager] Updated version in Blob: ${oldKeyOrUrl} -> ${blob.url}`)
+      return { success: true, newUrl: blob.url }
+    } catch (error) {
+      console.error('[PromptManager] Failed to update version:', error)
+      return { success: false, error: 'Failed to update version' }
+    }
+  }
+}
+
+/**
+ * 특정 버전 활성화
+ */
+export async function setActivePrompt(
+  phaseNumber: number,
+  keyOrUrl: string
+): Promise<{ success: boolean; error?: string }> {
+  const env = getStorageEnvironment()
+
+  if (env === 'local') {
+    // 로컬: 메모리 저장소
+    return promptStorage.setActiveVersion(phaseNumber, keyOrUrl)
+  } else {
+    // Vercel: Blob Storage에서는 활성 상태를 별도 메타데이터로 관리하기 어려움
+    // 따라서 가장 최신 업로드된 파일이 활성으로 간주됨
+    // 활성화를 위해 파일을 다시 업로드하여 uploadedAt 갱신
+    try {
+      const response = await fetch(keyOrUrl)
+      if (!response.ok) {
+        return { success: false, error: 'Failed to fetch prompt' }
+      }
+      const content = await response.text()
+
+      // URL에서 phase와 버전 추출
+      const versionMatch = keyOrUrl.match(/v(\d+\.\d+\.\d+)/)
+      const version = versionMatch ? versionMatch[1] : '1.0.0'
+
+      // 동일한 파일명으로 다시 업로드 (덮어쓰기로 시간 갱신)
+      const { put } = await import('@vercel/blob')
+      const fileName = `prompts/phase${phaseNumber}/v${version}.md`
+      await put(fileName, content, {
+        access: 'public',
+        addRandomSuffix: false,
+        contentType: 'text/markdown',
+      })
+
+      console.log(`[PromptManager] Activated in Blob: ${keyOrUrl}`)
+      return { success: true }
+    } catch (error) {
+      console.error('[PromptManager] Failed to activate prompt:', error)
+      return { success: false, error: 'Failed to activate prompt' }
+    }
+  }
+}
+
+/**
+ * 활성 프롬프트 조회
+ */
+export async function getActivePrompt(
+  phaseNumber: number
+): Promise<PromptVersion | null> {
+  const env = getStorageEnvironment()
+
+  if (env === 'local') {
+    // 로컬: isActive가 true인 프롬프트 반환
+    const active = promptStorage.getActiveByPhase(phaseNumber)
+    return active
+  } else {
+    // Vercel: 가장 최신 업로드된 파일이 활성
+    const prompts = await listPrompts(phaseNumber)
+    if (prompts.length === 0) return null
+
+    // uploadedAt 기준 정렬 (가장 최신이 활성)
+    return prompts.sort((a, b) =>
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    )[0]
+  }
+}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { promptStorage, defaultPromptTemplate } from '@/lib/prompt-storage'
-import { listPrompts, savePrompt, deletePrompt } from '@/lib/config/prompt-manager'
+import { listPrompts, savePrompt, deletePrompt, updatePromptVersion, getActivePrompt } from '@/lib/config/prompt-manager'
 import { getStorageEnvironment } from '@/lib/config/environment'
 
 /**
@@ -164,6 +164,59 @@ export async function DELETE(request: NextRequest) {
     console.error('[DELETE /api/admin/prompts] Error:', error)
     return NextResponse.json(
       { error: 'Failed to delete prompt' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * PATCH /api/admin/prompts
+ * 프롬프트 버전 번호 수정
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { phaseNumber, key, url, newVersion } = body
+
+    const keyOrUrl = key || url
+    if (!keyOrUrl || !newVersion || !phaseNumber) {
+      return NextResponse.json(
+        { error: 'Missing required fields: phaseNumber, key/url, newVersion' },
+        { status: 400 }
+      )
+    }
+
+    // 버전 형식 검증 (semver)
+    const semverRegex = /^\d+\.\d+\.\d+$/
+    if (!semverRegex.test(newVersion)) {
+      return NextResponse.json(
+        { error: 'Invalid version format. Use semver (e.g., 1.0.0)' },
+        { status: 400 }
+      )
+    }
+
+    // 통합 레이어 사용
+    const result = await updatePromptVersion(phaseNumber, keyOrUrl, newVersion)
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to update version' },
+        { status: 400 }
+      )
+    }
+
+    console.log('[PATCH /api/admin/prompts] Version updated:', { from: keyOrUrl, newVersion })
+
+    return NextResponse.json({
+      success: true,
+      environment: getStorageEnvironment(),
+      newKey: result.newKey,
+      newUrl: result.newUrl,
+    })
+  } catch (error) {
+    console.error('[PATCH /api/admin/prompts] Error:', error)
+    return NextResponse.json(
+      { error: 'Failed to update prompt version' },
       { status: 500 }
     )
   }

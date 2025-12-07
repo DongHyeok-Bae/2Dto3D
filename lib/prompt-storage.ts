@@ -91,6 +91,69 @@ class PromptStorage {
     return result
   }
 
+  // 버전 번호 수정
+  updateVersion(oldKey: string, newVersion: string): { success: boolean; newKey?: string; error?: string } {
+    const data = this.storage.get(oldKey)
+    if (!data) {
+      return { success: false, error: 'Prompt not found' }
+    }
+
+    const newKey = this.getKey(data.phaseNumber, newVersion)
+
+    // 새 버전 키가 이미 존재하는지 확인
+    if (this.storage.has(newKey)) {
+      return { success: false, error: 'Version already exists' }
+    }
+
+    // 새 키로 데이터 저장
+    const updatedData: PromptData = {
+      ...data,
+      key: newKey,
+      version: newVersion,
+      updatedAt: new Date().toISOString(),
+    }
+
+    this.storage.set(newKey, updatedData)
+    this.storage.delete(oldKey)
+
+    console.log(`[PromptStorage] Updated version: ${oldKey} -> ${newKey}`)
+    return { success: true, newKey }
+  }
+
+  // 특정 버전을 활성화 (같은 Phase의 다른 버전들은 비활성화)
+  setActiveVersion(phaseNumber: number, key: string): { success: boolean; error?: string } {
+    const targetPrompt = this.storage.get(key)
+    if (!targetPrompt) {
+      return { success: false, error: 'Prompt not found' }
+    }
+
+    if (targetPrompt.phaseNumber !== phaseNumber) {
+      return { success: false, error: 'Phase number mismatch' }
+    }
+
+    // 같은 Phase의 모든 프롬프트 비활성화
+    for (const [k, v] of this.storage.entries()) {
+      if (v.phaseNumber === phaseNumber) {
+        v.isActive = false
+        this.storage.set(k, v)
+      }
+    }
+
+    // 타겟 프롬프트 활성화
+    targetPrompt.isActive = true
+    targetPrompt.updatedAt = new Date().toISOString()
+    this.storage.set(key, targetPrompt)
+
+    console.log(`[PromptStorage] Activated: ${key}`)
+    return { success: true }
+  }
+
+  // 활성 프롬프트 조회
+  getActiveByPhase(phaseNumber: number): PromptData | null {
+    const prompts = this.getByPhase(phaseNumber)
+    return prompts.find(p => p.isActive) || null
+  }
+
   getAll(): PromptData[] {
     return Array.from(this.storage.values())
   }
