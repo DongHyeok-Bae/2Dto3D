@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { promptStorage, defaultPromptTemplate } from '@/lib/prompt-storage'
 import { listPrompts, savePrompt, deletePrompt, updatePromptVersion, getActivePrompt } from '@/lib/config/prompt-manager'
 import { getStorageEnvironment } from '@/lib/config/environment'
+import { MAX_PHASE } from '@/lib/config/phases'
 
 /**
  * GET /api/admin/prompts?phase=1
@@ -22,9 +23,9 @@ export async function GET(request: NextRequest) {
 
     const phaseNumber = parseInt(phase, 10)
 
-    if (phaseNumber < 1 || phaseNumber > 7) {
+    if (phaseNumber < 1 || phaseNumber > MAX_PHASE) {
       return NextResponse.json(
-        { error: 'Phase must be between 1 and 7' },
+        { error: `Phase must be between 1 and ${MAX_PHASE}` },
         { status: 400 }
       )
     }
@@ -84,9 +85,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (phaseNumber < 1 || phaseNumber > 7) {
+    if (phaseNumber < 1 || phaseNumber > MAX_PHASE) {
       return NextResponse.json(
-        { error: 'Phase must be between 1 and 7' },
+        { error: `Phase must be between 1 and ${MAX_PHASE}` },
         { status: 400 }
       )
     }

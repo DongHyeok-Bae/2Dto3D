@@ -67,7 +67,7 @@ export default function Viewer3D({
             </svg>
           </div>
           <p className="text-sm text-neutral-warmGray">
-            Phase 7을 실행하여
+            Phase 6을 실행하여
             <br />
             Master JSON을 생성하세요
           </p>

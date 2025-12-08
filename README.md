@@ -17,8 +17,8 @@
 
 ### ✨ 주요 기능
 
-- 🎯 **AI 기반 도면 분석**: Google Gemini 3 Pro를 활용한 정확한 도면 인식
-- 🏗️ **7단계 변환 파이프라인**: 체계적인 단계별 BIM 데이터 생성
+- 🎯 **AI 기반 도면 분석**: Google Gemini 1.5 Pro를 활용한 정확한 도면 인식
+- 🏗️ **6단계 변환 파이프라인**: 체계적인 단계별 BIM 데이터 생성
 - 🎨 **실시간 3D 시각화**: Three.js 기반 인터랙티브 3D 뷰어
 - 💾 **다양한 내보내기**: glTF, OBJ, STL, IFC-like, CSV 등 지원
 - 📁 **프로젝트 관리**: 저장/불러오기 기능
@@ -76,14 +76,13 @@ yarn dev
 - 지원 형식: PNG, JPEG, WebP (최대 10MB)
 
 ### 2️⃣ AI 분석 실행
-- 7단계 파이프라인 자동 실행
+- 6단계 파이프라인 자동 실행
   - Phase 1: 좌표계 정규화
   - Phase 2: 구조 요소 추출
   - Phase 3: 개구부 인식
   - Phase 4: 공간 분석
   - Phase 5: 치수 계산
-  - Phase 6: 신뢰도 검증
-  - Phase 7: Master JSON 생성
+  - Phase 6: Master JSON 생성
 
 ### 3️⃣ 결과 확인
 - Phase별 상세 결과 조회

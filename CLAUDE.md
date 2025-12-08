@@ -96,7 +96,7 @@ Accent:
 #### 예정 작업
 1. Vercel Blob Storage 연동
 2. 프롬프트 버전 관리 시스템
-3. Phase 1-7 프롬프트 초기 업로드
+3. Phase 1-6 프롬프트 초기 업로드
 4. 프롬프트 CRUD API 구현
 5. 실행 결과 저장/조회 시스템
 
@@ -163,7 +163,7 @@ Vercel Blob Storage 기반 프롬프트 버전 관리 시스템 구축
 
 #### 4. 프롬프트 템플릿
 - ✅ `lib/ai/prompts/phase1.md`: Phase 1 프롬프트 초안
-- Phase 2-6 프롬프트는 "단계별 프롬프트" 폴더에 준비됨
+- Phase 2-6 프롬프트는 lib/ai/prompts/ 폴더에 준비됨
 
 #### 5. UI 개선
 - ✅ 로고 이미지 적용 (logo-crossover.png)
@@ -200,7 +200,7 @@ Vercel Blob Storage 기반 프롬프트 버전 관리 시스템 구축
 
 #### 3. 프롬프트 관리
 - ✅ `app/admin/prompts/page.tsx`: Phase 목록
-  - 7개 Phase 카드 레이아웃
+  - 6개 Phase 카드 레이아웃 (lib/config/phases.ts에서 동적 import)
   - 버전 및 상태 표시
 - ✅ `app/admin/prompts/[phase]/page.tsx`: 편집 페이지
   - Monaco Editor 통합
@@ -223,7 +223,7 @@ Vercel Blob Storage 기반 프롬프트 버전 관리 시스템 구축
 
 #### 예정 작업
 1. Gemini API 클라이언트
-2. Phase 1-7 API 엔드포인트
+2. Phase 1-6 API 엔드포인트
 3. 이미지 전처리 (클라이언트)
 4. JSON Schema 검증
 5. 에러 핸들링
@@ -244,7 +244,7 @@ Google Gemini API 기반 Phase 1-6 파이프라인 구현
 - ✅ `lib/ai/gemini-client.ts`: Gemini 1.5 Pro 통합
   - `analyzeWithGemini()`: Phase 1-5 이미지 분석
   - `verifyWithGemini()`: Phase 6 검증
-  - `generateMasterJSON()`: Phase 7 최종 JSON 생성
+  - `generateMasterJSON()`: Phase 6 최종 JSON 생성
   - JSON 응답 파싱 (```json ... ``` 지원)
   - 에러 핸들링
 
@@ -258,7 +258,7 @@ Google Gemini API 기반 Phase 1-6 파이프라인 구현
 
 #### 3. JSON Schema 검증
 - ✅ `lib/validation/schemas.ts`: Zod 스키마
-  - Phase 1-7 스키마 정의
+  - Phase 1-6 스키마 정의
   - `validatePhaseResult()`: 엄격한 검증
   - `validatePhaseResultPartial()`: 부분 검증
   - 상세한 에러 메시지

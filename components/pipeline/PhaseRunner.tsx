@@ -1,22 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { usePipelineStore, PHASE_DEPENDENCIES } from '@/store/pipelineStore'
+import { usePipelineStore } from '@/store/pipelineStore'
+import { PHASES, PHASE_DEPENDENCIES, TOTAL_PHASES, FINAL_PHASE } from '@/lib/config/phases'
 
 interface PhaseRunnerProps {
   imageBase64: string
   onComplete?: (results: any) => void
 }
-
-// 6단계 파이프라인 (기존 Phase 6 검증 제거, Phase 7이 Phase 6으로 승격)
-const PHASES = [
-  { number: 1, name: 'Normalization', description: '좌표계 설정' },
-  { number: 2, name: 'Structure', description: '구조 추출' },
-  { number: 3, name: 'Openings', description: '개구부 인식' },
-  { number: 4, name: 'Spaces', description: '공간 분석' },
-  { number: 5, name: 'Dimensions', description: '치수 계산' },
-  { number: 6, name: 'Master JSON', description: '최종 BIM JSON 생성' },
-]
 
 export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProps) {
   const [isRunning, setIsRunning] = useState(false)
@@ -39,28 +30,27 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
   // 파생 상태: results, executing, errors에서 phaseStatuses 계산
   const phaseStatuses = useMemo(() => {
     const statuses: Record<number, 'pending' | 'running' | 'completed' | 'error'> = {}
-    for (let i = 1; i <= 6; i++) {
-      const phaseKey = `phase${i}` as keyof typeof results
-      if (executing[i]) {
-        statuses[i] = 'running'
-      } else if (storeErrors[i]) {
-        statuses[i] = 'error'
+    PHASES.forEach(phase => {
+      const phaseKey = `phase${phase.number}` as keyof typeof results
+      if (executing[phase.number]) {
+        statuses[phase.number] = 'running'
+      } else if (storeErrors[phase.number]) {
+        statuses[phase.number] = 'error'
       } else if (results[phaseKey]) {
-        statuses[i] = 'completed'
+        statuses[phase.number] = 'completed'
       } else {
-        statuses[i] = 'pending'
+        statuses[phase.number] = 'pending'
       }
-    }
+    })
     return statuses
   }, [results, executing, storeErrors])
 
   // "이어서 실행" 버튼 표시 조건
   const lastCompletedPhase = getLastCompletedPhase()
-  const totalPhases = 6
   const showContinueButton =
     !isRunning &&
     lastCompletedPhase > 0 &&
-    lastCompletedPhase < totalPhases
+    lastCompletedPhase < TOTAL_PHASES
 
   const runPhase = async (phaseNumber: number) => {
     setCurrentPhase(phaseNumber)
@@ -88,8 +78,8 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
         }
       }
 
-      // Phase 6: Master JSON 생성 - Phase 1-5 결과 포함 (이미지 없음)
-      if (phaseNumber === 6) {
+      // 최종 Phase: Master JSON 생성 - 이전 모든 Phase 결과 포함 (이미지 없음)
+      if (phaseNumber === FINAL_PHASE.number) {
         const currentResults = usePipelineStore.getState().results
         body.allResults = {
           phase1: currentResults.phase1,
@@ -98,7 +88,7 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
           phase4: currentResults.phase4,
           phase5: currentResults.phase5,
         }
-        delete body.imageBase64 // Phase 6은 이미지 불필요
+        delete body.imageBase64 // 최종 Phase는 이미지 불필요
       }
 
       const response = await fetch(endpoint, {
@@ -136,14 +126,14 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     setPipelineError(null) // 파이프라인 에러 초기화
 
     // 시작 Phase부터 에러 초기화
-    for (let i = startPhase; i <= 6; i++) {
+    for (let i = startPhase; i <= TOTAL_PHASES; i++) {
       setError(i, null)
     }
 
     let failedPhase = 0
 
     try {
-      for (let i = startPhase; i <= 6; i++) {
+      for (let i = startPhase; i <= TOTAL_PHASES; i++) {
         failedPhase = i
         await runPhase(i)
         // 각 Phase 사이에 약간의 딜레이 (UI 업데이트를 위해)
@@ -171,7 +161,7 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
   // 전체 실행 (Phase 1부터)
   const runAllPhases = async () => {
     // Phase 1부터 실행할 때는 모든 에러 초기화
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= TOTAL_PHASES; i++) {
       setError(i, null)
     }
     await runFromPhase(1)
@@ -370,7 +360,7 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
               <div className="mt-2 w-full bg-neutral-warmGray/20 rounded-full h-2">
                 <div
                   className="bg-gradient-royal h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(currentPhase / 6) * 100}%` }}
+                  style={{ width: `${(currentPhase / TOTAL_PHASES) * 100}%` }}
                 />
               </div>
             </div>

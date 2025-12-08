@@ -8,19 +8,14 @@ import type {
   Phase5Result,
   MasterJSON,
 } from '@/types'
+import {
+  PHASE_DEPENDENCIES,
+  PHASES_REQUIRING_IMAGE,
+  TOTAL_PHASES,
+} from '@/lib/config/phases'
 
-// Phase 의존성 정의
-export const PHASE_DEPENDENCIES: Record<number, number[]> = {
-  1: [],              // 의존성 없음 (이미지만 필요)
-  2: [1],             // Phase 1 필요
-  3: [1, 2],          // Phase 1-2 필요
-  4: [1, 2, 3],       // Phase 1-3 필요
-  5: [1, 2, 3, 4],    // Phase 1-4 필요
-  6: [1, 2, 3, 4, 5], // Phase 1-5 필요 (이미지 불필요)
-}
-
-// 이미지가 필요한 Phase 목록
-export const PHASES_REQUIRING_IMAGE = [1, 2, 3, 4, 5]
+// Re-export for backward compatibility
+export { PHASE_DEPENDENCIES, PHASES_REQUIRING_IMAGE }
 
 // 선수 조건 상태 인터페이스
 export interface PrerequisiteStatus {
@@ -150,7 +145,7 @@ export const usePipelineStore = create<PipelineState>()(
               timestamp: new Date().toISOString(),
             },
           },
-          currentPhase: phase < 6 ? phase + 1 : phase, // 6단계 파이프라인
+          currentPhase: phase < TOTAL_PHASES ? phase + 1 : phase, // 동적 파이프라인 단계
         })),
 
       setExecuting: (phase, executing) =>
@@ -184,7 +179,7 @@ export const usePipelineStore = create<PipelineState>()(
         const { results } = get()
         let lastCompleted = 0
 
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 1; i <= TOTAL_PHASES; i++) {
           const phaseKey = `phase${i}` as keyof typeof results
           if (results[phaseKey]) {
             lastCompleted = i
@@ -215,8 +210,8 @@ export const usePipelineStore = create<PipelineState>()(
           const newErrors = { ...state.errors }
           const newExecuting = { ...state.executing }
 
-          // phase부터 이후 결과 모두 삭제 (6단계 파이프라인)
-          for (let i = phase; i <= 6; i++) {
+          // phase부터 이후 결과 모두 삭제 (동적 파이프라인 단계)
+          for (let i = phase; i <= TOTAL_PHASES; i++) {
             delete newResults[`phase${i}` as keyof typeof newResults]
             delete newMetadata[`phase${i}` as keyof typeof newMetadata]
             newErrors[i] = null

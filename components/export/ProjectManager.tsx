@@ -8,6 +8,7 @@ import {
   createProjectTemplate,
   type ProjectData,
 } from '@/lib/project/projectManager'
+import { TOTAL_PHASES } from '@/lib/config/phases'
 
 interface ProjectManagerProps {
   onProjectLoad?: (project: ProjectData) => void
@@ -211,7 +212,7 @@ export default function ProjectManager({ onProjectLoad }: ProjectManagerProps) {
           <div className="flex justify-between">
             <span>완료된 단계:</span>
             <span className="text-primary-navy">
-              {Object.keys(results).filter((key) => key.startsWith('phase')).length} / 7
+              {Object.keys(results).filter((key) => key.startsWith('phase')).length} / {TOTAL_PHASES}
             </span>
           </div>
           <div className="flex justify-between">

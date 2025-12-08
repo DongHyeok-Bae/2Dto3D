@@ -2,16 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-
-const PHASES = [
-  { number: 1, name: 'Normalization', description: '좌표계 설정' },
-  { number: 2, name: 'Structure', description: '구조 추출' },
-  { number: 3, name: 'Openings', description: '개구부 인식' },
-  { number: 4, name: 'Spaces', description: '공간 분석' },
-  { number: 5, name: 'Dimensions', description: '치수 계산' },
-  { number: 6, name: 'Confidence', description: '신뢰도 검증' },
-  { number: 7, name: 'Master JSON', description: '최종 합성' },
-]
+import { PHASES } from '@/lib/config/phases'
 
 interface PhaseVersionInfo {
   latestVersion: string

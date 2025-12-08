@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { TOTAL_PHASES } from '@/lib/config/phases'
 
 export default function AdminPage() {
   return (
@@ -10,7 +11,7 @@ export default function AdminPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <AdminCard
           title="프롬프트 관리"
-          description="Phase 1-7 프롬프트 편집 및 버전 관리"
+          description={`Phase 1-${TOTAL_PHASES} 프롬프트 편집 및 버전 관리`}
           href="/admin/prompts"
           icon="📝"
         />
@@ -32,7 +33,7 @@ export default function AdminPage() {
       <div className="mt-12">
         <h2 className="text-2xl font-serif font-semibold mb-6">빠른 통계</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatCard label="총 프롬프트 버전" value="7" />
+          <StatCard label="총 프롬프트 버전" value={TOTAL_PHASES.toString()} />
           <StatCard label="실행 횟수" value="0" />
           <StatCard label="평균 실행 시간" value="-" />
           <StatCard label="성공률" value="-" />

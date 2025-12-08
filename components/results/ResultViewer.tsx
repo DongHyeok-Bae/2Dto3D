@@ -2,16 +2,7 @@
 
 import { useState } from 'react'
 import { usePipelineStore } from '@/store/pipelineStore'
-
-// 6단계 파이프라인
-const PHASE_NAMES = {
-  1: 'Normalization',
-  2: 'Structure',
-  3: 'Openings',
-  4: 'Spaces',
-  5: 'Dimensions',
-  6: 'Master JSON', // 기존 Phase 7 승격
-}
+import { PHASE_NAMES } from '@/lib/config/phases'
 
 export default function ResultViewer() {
   const { results, metadata, executionCounts } = usePipelineStore()
