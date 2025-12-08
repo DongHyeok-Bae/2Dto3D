@@ -68,9 +68,41 @@ Response:
 }
 ```
 
-## 🔒 보안
-현재 인증 없음 (개발 초기 단계)
-→ Phase 7에서 관리자 인증 추가 예정
+## 🔒 보안 (Phase 9 구현 완료)
+- ✅ **미들웨어 인증**: `/admin/*` 경로는 `middleware.ts`에서 보호
+- ✅ **세션 기반**: httpOnly 쿠키로 세션 관리
+- ✅ **인증 API**: `/api/auth/login`, `/api/auth/logout`
+- **참고**: API 엔드포인트 자체는 미들웨어 범위 외이므로 필요시 개별 인증 추가 가능
+
+### `/api/admin/analytics` ✅ (Phase 8)
+분석 데이터 조회 API
+
+#### GET - 분석 데이터 조회
+```typescript
+GET /api/admin/analytics?range=7d
+
+Response:
+{
+  success: true,
+  environment: "local" | "vercel",
+  data: {
+    summary: {
+      avgDau: number,
+      totalApiCalls: number,
+      avgResponseTime: number,
+      successRate: number
+    },
+    daily: DailyAnalytics[]
+  }
+}
+```
+
+#### 쿼리 파라미터:
+- `range`: 조회 기간 (기본: 7d)
+  - `1d`: 1일
+  - `7d`: 7일
+  - `14d`: 14일
+  - `30d`: 30일
 
 ## 🚀 다음 작업
 - `execute/` - 프롬프트 테스트 실행 API

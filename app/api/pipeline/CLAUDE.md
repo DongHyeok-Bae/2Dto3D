@@ -128,6 +128,34 @@ const phase6Response = await fetch('/api/pipeline/phase6', {
 })
 ```
 
+## 🔍 API 추적 통합 (Phase 8) ✅
+
+Phase 1-6 API에 분석 추적 코드가 통합되었습니다.
+
+### 사용 패턴
+```typescript
+import { createPipelineTracker } from '@/lib/analytics/api-tracker'
+
+export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+  const tracker = createPipelineTracker(1) // Phase 번호
+
+  try {
+    // 기존 로직...
+    tracker.trackSuccess(Date.now() - startTime)
+    return successResponse(...)
+  } catch (error) {
+    tracker.trackError(Date.now() - startTime)
+    return errorResponse(error)
+  }
+}
+```
+
+**특징:**
+- 비동기 비차단 추적 (분석 실패가 본 기능에 영향 X)
+- Phase별 호출 수, 성공/실패, 응답 시간 기록
+- `/admin/analytics` 페이지에서 시각화
+
 ## 📋 다음 작업
 - Rate limiting
 - 응답 캐싱

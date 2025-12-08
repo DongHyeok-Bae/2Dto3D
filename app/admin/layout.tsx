@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import LogoutButton from '@/components/auth/LogoutButton'
 
 export default function AdminLayout({
   children,
@@ -27,10 +28,12 @@ export default function AdminLayout({
             </Link>
 
             {/* Menu */}
-            <div className="flex gap-6">
+            <div className="flex items-center gap-6">
               <NavLink href="/admin/prompts">프롬프트 관리</NavLink>
               <NavLink href="/admin/results">실행 결과</NavLink>
               <NavLink href="/admin/analytics">분석</NavLink>
+              <div className="border-l border-white/20 h-6 mx-2" />
+              <LogoutButton />
             </div>
           </div>
         </div>
