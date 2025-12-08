@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Noto_Serif_KR } from 'next/font/google'
 import './globals.css'
+import VisitTracker from '@/components/analytics/VisitTracker'
 
 const notoSerifKR = Noto_Serif_KR({
   subsets: ['latin'],
@@ -150,6 +151,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-neutral-marble text-neutral-charcoal font-sans antialiased">
+        <VisitTracker />
         {children}
       </body>
     </html>

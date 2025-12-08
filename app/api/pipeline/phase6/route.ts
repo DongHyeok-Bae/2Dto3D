@@ -19,8 +19,12 @@ import { errorResponse, successResponse, ValidationError, GeminiError, PromptNot
 import { getLatestPrompt, getActivePrompt } from '@/lib/config/prompt-manager'
 import { saveExecutionResult } from '@/lib/config/result-manager'
 import { initializeLocalPrompts } from '@/lib/config/prompt-loader'
+import { createPipelineTracker } from '@/lib/analytics/api-tracker'
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+  const tracker = createPipelineTracker(6)
+
   try {
     // 로컬 프롬프트 자동 로드 (첫 호출 시에만 실행됨)
     await initializeLocalPrompts()
@@ -91,6 +95,9 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    // API 호출 추적 (성공)
+    tracker.trackSuccess(Date.now() - startTime)
+
     return successResponse({
       success: true,
       phase: 6,
@@ -104,6 +111,9 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
+    // API 호출 추적 (실패)
+    tracker.trackError(Date.now() - startTime)
+
     return errorResponse(error)
   }
 }
