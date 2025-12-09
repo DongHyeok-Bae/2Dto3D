@@ -1,8 +1,15 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { usePipelineStore } from '@/store/pipelineStore'
 import { PHASES, PHASE_DEPENDENCIES, TOTAL_PHASES, FINAL_PHASE } from '@/lib/config/phases'
+import AlgorithmicArtCanvas from '@/components/service/AlgorithmicArtCanvas'
+import NeuralPulseBar from '@/components/service/NeuralPulseBar'
+import GlassPhaseCard from '@/components/service/GlassPhaseCard'
+import MagneticButton from '@/components/service/MagneticButton'
+import OrbitalProgress from '@/components/service/OrbitalProgress'
+import ImageLightbox from '@/components/ui/ImageLightbox'
 
 interface PhaseRunnerProps {
   imageBase64: string
@@ -12,6 +19,8 @@ interface PhaseRunnerProps {
 export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProps) {
   const [isRunning, setIsRunning] = useState(false)
   const [currentPhase, setCurrentPhase] = useState(0)
+  const [viewMode, setViewMode] = useState<'cards' | 'orbital'>('cards')
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const {
     setPhaseResult,
@@ -25,7 +34,21 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     pipelineError,
     setPipelineError,
     getLastCompletedPhase,
+    metadata,
   } = usePipelineStore()
+
+  // ✅ 핵심: executing에서 실행 중 여부 파생 (탭 전환에도 Zustand 메모리에서 유지됨)
+  const isAnyPhaseExecuting = Object.values(executing).some(v => v === true)
+  const showSplitView = isRunning || isAnyPhaseExecuting
+
+  // 현재 실행 중인 Phase 번호 파생 (탭 복귀 시에도 정확)
+  const getCurrentExecutingPhase = () => {
+    for (let i = 1; i <= TOTAL_PHASES; i++) {
+      if (executing[i]) return i
+    }
+    return 0
+  }
+  const executingPhase = getCurrentExecutingPhase()
 
   // 파생 상태: results, executing, errors에서 phaseStatuses 계산
   const phaseStatuses = useMemo(() => {
@@ -45,12 +68,34 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     return statuses
   }, [results, executing, storeErrors])
 
+  // Confidence Scores
+  const confidenceScores = useMemo(() => {
+    const scores: Record<number, number> = {}
+    PHASES.forEach(phase => {
+      const phaseKey = `phase${phase.number}` as keyof typeof results
+      const result = results[phaseKey]
+      if (result && typeof result === 'object' && 'metadata' in result) {
+        scores[phase.number] = (result as any).metadata?.confidence || 0
+      }
+    })
+    return scores
+  }, [results])
+
   // "이어서 실행" 버튼 표시 조건
   const lastCompletedPhase = getLastCompletedPhase()
   const showContinueButton =
     !isRunning &&
     lastCompletedPhase > 0 &&
     lastCompletedPhase < TOTAL_PHASES
+
+  // Orbital Progress용 phases 데이터
+  const orbitalPhases = useMemo(() =>
+    PHASES.map(phase => ({
+      number: phase.number,
+      name: phase.name,
+      status: phaseStatuses[phase.number],
+      confidence: confidenceScores[phase.number]
+    })), [phaseStatuses, confidenceScores])
 
   const runPhase = async (phaseNumber: number) => {
     setCurrentPhase(phaseNumber)
@@ -67,7 +112,6 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
       }
 
       // Phase 2-5: 이전 결과 포함
-      // 중요: getState()를 사용하여 최신 상태를 가져옴 (클로저 문제 방지)
       if (phaseNumber >= 2 && phaseNumber <= 5) {
         const currentResults = usePipelineStore.getState().results
         body.previousResults = {
@@ -123,9 +167,8 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
   // 특정 Phase부터 실행하는 공통 함수
   const runFromPhase = async (startPhase: number) => {
     setIsRunning(true)
-    setPipelineError(null) // 파이프라인 에러 초기화
+    setPipelineError(null)
 
-    // 시작 Phase부터 에러 초기화
     for (let i = startPhase; i <= TOTAL_PHASES; i++) {
       setError(i, null)
     }
@@ -136,17 +179,14 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
       for (let i = startPhase; i <= TOTAL_PHASES; i++) {
         failedPhase = i
         await runPhase(i)
-        // 각 Phase 사이에 약간의 딜레이 (UI 업데이트를 위해)
         await new Promise(resolve => setTimeout(resolve, 500))
       }
 
-      // 전체 완료
       if (onComplete) {
         onComplete(usePipelineStore.getState().results)
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'
-      // 에러 발생 Phase 기록
       setPipelineError({
         phase: failedPhase,
         message: errorMessage,
@@ -158,16 +198,13 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     }
   }
 
-  // 전체 실행 (Phase 1부터)
   const runAllPhases = async () => {
-    // Phase 1부터 실행할 때는 모든 에러 초기화
     for (let i = 1; i <= TOTAL_PHASES; i++) {
       setError(i, null)
     }
     await runFromPhase(1)
   }
 
-  // 이어서 실행 (마지막 완료된 Phase 다음부터)
   const handleContinue = async () => {
     const lastCompleted = getLastCompletedPhase()
     await runFromPhase(lastCompleted + 1)
@@ -185,188 +222,350 @@ export default function PhaseRunner({ imageBase64, onComplete }: PhaseRunnerProp
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'running':
-        return (
-          <div className="w-5 h-5 border-2 border-primary-crimson border-t-transparent rounded-full animate-spin" />
-        )
-      case 'completed':
-        return (
-          <svg className="w-5 h-5 text-accent-emerald" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-              clipRule="evenodd"
-            />
-          </svg>
-        )
-      case 'error':
-        return (
-          <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-              clipRule="evenodd"
-            />
-          </svg>
-        )
-      default:
-        return (
-          <div className="w-5 h-5 rounded-full border-2 border-neutral-warmGray/30" />
-        )
-    }
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-serif font-bold text-primary-navy">
-          AI 파이프라인 실행
-        </h2>
-        <div className="flex gap-2">
-          {/* 전체 실행 버튼 */}
-          <button
+      {/* Neural Pulse Bar - AI Status */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <NeuralPulseBar
+          isActive={showSplitView}
+          currentPhase={executingPhase || currentPhase || getLastCompletedPhase()}
+          totalPhases={TOTAL_PHASES}
+          status={showSplitView ? `Phase ${executingPhase || currentPhase} 분석 중...` : 'AI Engine Ready'}
+        />
+      </motion.div>
+
+      {/* Algorithmic Art Canvas - Building Animation with Split View */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+      >
+        <div className={`grid gap-4 ${showSplitView ? 'grid-cols-5' : 'grid-cols-1'}`}>
+          {/* Original Image Panel (40% = 2/5 columns) - Only shown during analysis */}
+          <AnimatePresence>
+            {showSplitView && (
+              <motion.div
+                className="col-span-2"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="relative h-full rounded-2xl overflow-hidden bg-white/80 backdrop-blur-sm border border-neutral-warmGray/10 shadow-neo">
+                  {/* Header */}
+                  <div className="p-3 bg-gradient-to-r from-primary-gold/10 to-transparent border-b border-neutral-warmGray/10">
+                    <h4 className="text-sm font-serif font-semibold text-primary-navy flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      원본 도면
+                    </h4>
+                  </div>
+
+                  {/* Image Container */}
+                  <motion.div
+                    className="relative p-3 cursor-pointer group"
+                    onClick={() => setLightboxOpen(true)}
+                    whileHover={{ scale: 1.01 }}
+                  >
+                    <div className="relative rounded-xl overflow-hidden bg-neutral-warmGray/5 border border-neutral-warmGray/10">
+                      <img
+                        src={imageBase64}
+                        alt="Original floor plan"
+                        className="w-full h-auto max-h-[280px] object-contain transition-transform group-hover:scale-105"
+                      />
+
+                      {/* Scanning Effect Overlay */}
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-b from-primary-crimson/20 via-transparent to-transparent pointer-events-none"
+                        animate={{ y: ['-100%', '200%'] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                      />
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-primary-navy/0 group-hover:bg-primary-navy/10 transition-colors flex items-center justify-center">
+                        <motion.div
+                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg"
+                          initial={{ scale: 0.9 }}
+                          whileHover={{ scale: 1 }}
+                        >
+                          <span className="text-xs font-medium text-primary-navy flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                            </svg>
+                            확대
+                          </span>
+                        </motion.div>
+                      </div>
+                    </div>
+
+                    {/* Analysis Status */}
+                    <div className="mt-3 flex items-center justify-between text-xs text-neutral-warmGray">
+                      <span className="flex items-center gap-1">
+                        <motion.span
+                          className="w-2 h-2 rounded-full bg-primary-crimson"
+                          animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                        />
+                        분석 중...
+                      </span>
+                      <span>Phase {executingPhase || currentPhase}/{TOTAL_PHASES}</span>
+                    </div>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Algorithmic Art Canvas (60% = 3/5 columns when running, full width otherwise) */}
+          <div className={showSplitView ? 'col-span-3' : 'col-span-1'}>
+            <AlgorithmicArtCanvas
+              currentPhase={executingPhase || currentPhase || getLastCompletedPhase()}
+              totalPhases={TOTAL_PHASES}
+              isRunning={showSplitView}
+              confidenceScores={confidenceScores}
+            />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Control Panel */}
+      <motion.div
+        className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-white/60 backdrop-blur-sm border border-neutral-warmGray/10"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-serif font-bold text-primary-navy">
+            AI 파이프라인
+          </h2>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary-navy/5">
+            <span className="text-sm text-neutral-warmGray">
+              {getLastCompletedPhase()}/{TOTAL_PHASES} 완료
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* View Mode Toggle */}
+          <div className="flex rounded-lg overflow-hidden border border-neutral-warmGray/20">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-3 py-1.5 text-sm transition-colors ${
+                viewMode === 'cards'
+                  ? 'bg-primary-navy text-white'
+                  : 'bg-white text-neutral-warmGray hover:bg-neutral-warmGray/10'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('orbital')}
+              className={`px-3 py-1.5 text-sm transition-colors ${
+                viewMode === 'orbital'
+                  ? 'bg-primary-navy text-white'
+                  : 'bg-white text-neutral-warmGray hover:bg-neutral-warmGray/10'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Action Buttons */}
+          <MagneticButton
+            variant="primary"
             onClick={runAllPhases}
             disabled={isRunning}
-            className="btn-primary"
+            loading={isRunning}
+            icon={isRunning ? undefined : "🚀"}
           >
             {isRunning ? '실행 중...' : '전체 실행'}
-          </button>
+          </MagneticButton>
 
-          {/* 이어서 실행 버튼 - 조건부 렌더링 */}
           {showContinueButton && (
-            <button
+            <MagneticButton
+              variant="secondary"
               onClick={handleContinue}
               disabled={isRunning}
-              className="btn-secondary"
+              icon="▶️"
             >
-              Phase {lastCompletedPhase + 1}부터 이어서 실행
-            </button>
+              Phase {lastCompletedPhase + 1}부터
+            </MagneticButton>
           )}
         </div>
-      </div>
+      </motion.div>
 
-      {/* 파이프라인 에러 메시지 */}
-      {pipelineError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
-          <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-              clipRule="evenodd"
-            />
-          </svg>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-red-800">
-              Phase {pipelineError.phase}에서 오류 발생
-            </p>
-            <p className="text-sm text-red-600 mt-0.5">
-              {pipelineError.message}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Phase List */}
-      <div className="space-y-3">
-        {PHASES.map(phase => (
-          <div
-            key={phase.number}
-            className={`
-              card-hover flex items-center gap-4 p-4
-              ${phaseStatuses[phase.number] === 'running' ? 'ring-2 ring-primary-crimson' : ''}
-            `}
+      {/* Pipeline Error Message */}
+      <AnimatePresence>
+        {pipelineError && (
+          <motion.div
+            className="bg-red-50/80 backdrop-blur-sm border border-red-200 rounded-xl p-4 flex items-start gap-3"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
           >
-            {/* Status Icon */}
-            <div className="flex-shrink-0">
-              {getStatusIcon(phaseStatuses[phase.number])}
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
             </div>
-
-            {/* Phase Info */}
             <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-primary-navy">
-                  Phase {phase.number}: {phase.name}
-                </span>
-                {phaseStatuses[phase.number] === 'running' && (
-                  <span className="text-xs text-primary-crimson font-medium">
-                    실행 중...
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-neutral-warmGray">{phase.description}</p>
-
-              {/* 선수 조건 체크마크 */}
-              {PHASE_DEPENDENCIES[phase.number]?.length > 0 && (
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="text-xs text-neutral-warmGray mr-1">선수조건:</span>
-                  {PHASE_DEPENDENCIES[phase.number].map(dep => {
-                    const phaseKey = `phase${dep}` as keyof typeof results
-                    const isCompleted = !!results[phaseKey]
-                    return (
-                      <span
-                        key={dep}
-                        className={`text-xs px-1.5 py-0.5 rounded ${
-                          isCompleted
-                            ? 'bg-accent-emerald/20 text-accent-emerald'
-                            : 'bg-neutral-warmGray/20 text-neutral-warmGray'
-                        }`}
-                      >
-                        P{dep} {isCompleted ? '✓' : '○'}
-                      </span>
-                    )
-                  })}
-                </div>
-              )}
-
-              {/* Error Message */}
-              {storeErrors[phase.number] && (
-                <p className="text-sm text-red-600 mt-1">{storeErrors[phase.number]}</p>
-              )}
-            </div>
-
-            {/* Action Button */}
-            <button
-              onClick={() => runSinglePhase(phase.number)}
-              disabled={!canExecutePhase(phase.number) || isRunning}
-              className={`btn-secondary text-sm ${
-                !canExecutePhase(phase.number) && !isRunning
-                  ? 'opacity-50 cursor-not-allowed'
-                  : ''
-              }`}
-              title={
-                !canExecutePhase(phase.number)
-                  ? '선수 Phase를 먼저 실행하세요'
-                  : undefined
-              }
-            >
-              {phaseStatuses[phase.number] === 'completed' ? '재실행' : '단독 실행'}
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Progress Bar */}
-      {isRunning && (
-        <div className="card bg-primary-navy/5">
-          <div className="flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-primary-crimson border-t-transparent rounded-full animate-spin" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-primary-navy">
-                Phase {currentPhase} 처리 중...
+              <p className="font-semibold text-red-800">
+                Phase {pipelineError.phase}에서 오류 발생
               </p>
-              <div className="mt-2 w-full bg-neutral-warmGray/20 rounded-full h-2">
-                <div
-                  className="bg-gradient-royal h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(currentPhase / TOTAL_PHASES) * 100}%` }}
+              <p className="text-sm text-red-600 mt-1">{pipelineError.message}</p>
+              <button
+                onClick={() => runFromPhase(pipelineError.phase)}
+                className="mt-2 text-sm text-red-700 underline hover:text-red-800"
+              >
+                이 Phase부터 재시도
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Phase Display */}
+      <AnimatePresence mode="wait">
+        {viewMode === 'cards' ? (
+          <motion.div
+            key="cards"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {PHASES.map((phase, index) => (
+              <motion.div
+                key={phase.number}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <GlassPhaseCard
+                  phaseNumber={phase.number}
+                  phaseName={phase.name}
+                  description={phase.description}
+                  status={phaseStatuses[phase.number]}
+                  confidence={confidenceScores[phase.number]}
+                  onRun={() => runSinglePhase(phase.number)}
+                  disabled={!canExecutePhase(phase.number) || isRunning}
+                  prerequisites={
+                    PHASE_DEPENDENCIES[phase.number]?.map(dep => ({
+                      phase: dep,
+                      completed: !!results[`phase${dep}` as keyof typeof results]
+                    })) || []
+                  }
+                  metadata={{
+                    executionTime: metadata[`phase${phase.number}` as keyof typeof metadata]?.executionTime,
+                    itemCount: (() => {
+                      const result = results[`phase${phase.number}` as keyof typeof results] as any
+                      if (!result) return undefined
+                      // 각 Phase별 아이템 수 계산
+                      if (result.walls) return result.walls.length
+                      if (result.spaces) return result.spaces.length
+                      if (result.doors || result.windows) return (result.doors?.length || 0) + (result.windows?.length || 0)
+                      if (result.building) return Object.values(result.building).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
+                      return undefined
+                    })()
+                  }}
                 />
+              </motion.div>
+            ))}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="orbital"
+            className="flex justify-center py-8"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+          >
+            <OrbitalProgress
+              phases={orbitalPhases}
+              currentPhase={currentPhase || getLastCompletedPhase()}
+              onPhaseClick={(phaseNum) => {
+                if (canExecutePhase(phaseNum) && !isRunning) {
+                  runSinglePhase(phaseNum)
+                }
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Completion Celebration */}
+      <AnimatePresence>
+        {getLastCompletedPhase() === TOTAL_PHASES && !isRunning && (
+          <motion.div
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-accent-emerald/10 via-primary-gold/10 to-accent-sapphire/10 border border-accent-emerald/30 p-6"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+          >
+            {/* Celebration particles */}
+            <div className="absolute inset-0 overflow-hidden">
+              {[...Array(20)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute w-2 h-2 rounded-full"
+                  style={{
+                    left: `${Math.random() * 100}%`,
+                    backgroundColor: ['#C5A059', '#00A86B', '#0066CC'][i % 3]
+                  }}
+                  initial={{ y: '100%', opacity: 0 }}
+                  animate={{
+                    y: '-100%',
+                    opacity: [0, 1, 0],
+                    x: Math.sin(i) * 50
+                  }}
+                  transition={{
+                    duration: 2 + Math.random() * 2,
+                    repeat: Infinity,
+                    delay: Math.random() * 2
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="relative flex items-center gap-4">
+              <motion.div
+                className="text-5xl"
+                animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                🎉
+              </motion.div>
+              <div>
+                <h3 className="text-xl font-bold text-primary-navy">
+                  모든 분석이 완료되었습니다!
+                </h3>
+                <p className="text-neutral-warmGray mt-1">
+                  결과 확인 탭에서 상세 데이터를 확인하거나, 3D 뷰어에서 모델을 확인하세요.
+                </p>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Image Lightbox for Split View */}
+      <ImageLightbox
+        isOpen={lightboxOpen}
+        imageSrc={imageBase64}
+        onClose={() => setLightboxOpen(false)}
+        title="원본 도면"
+        alt="Original floor plan"
+      />
     </div>
   )
 }
