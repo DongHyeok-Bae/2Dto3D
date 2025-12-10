@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import ImageUploader from '@/components/upload/ImageUploader'
 import PhaseRunner from '@/components/pipeline/PhaseRunner'
@@ -268,36 +269,40 @@ export default function ServicePage() {
             <div className="flex items-center justify-between">
               {/* Logo & Title */}
               <div className="flex items-center gap-5">
-                <motion.div
-                  className="relative"
-                  whileHover={{ scale: 1.05, rotate: 3 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
-                >
-                  {/* Logo Glow */}
+                <Link href="/">
                   <motion.div
-                    className="absolute -inset-2 rounded-full bg-primary-gold/20 blur-md"
-                    animate={{ opacity: [0.3, 0.6, 0.3], scale: [0.9, 1.1, 0.9] }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                  />
-                  <Image
-                    src="/logo-crossover.png"
-                    alt="2Dto3D"
-                    width={56}
-                    height={56}
-                    className="relative object-contain drop-shadow-lg"
-                  />
-                </motion.div>
+                    className="relative cursor-pointer"
+                    whileHover={{ scale: 1.05, rotate: 3 }}
+                    transition={{ type: 'spring', stiffness: 300 }}
+                  >
+                    {/* Logo Glow */}
+                    <motion.div
+                      className="absolute -inset-2 rounded-full bg-primary-gold/20 blur-md"
+                      animate={{ opacity: [0.3, 0.6, 0.3], scale: [0.9, 1.1, 0.9] }}
+                      transition={{ duration: 3, repeat: Infinity }}
+                    />
+                    <Image
+                      src="/logo-crossover.png"
+                      alt="2Dto3D"
+                      width={56}
+                      height={56}
+                      className="relative object-contain drop-shadow-lg"
+                    />
+                  </motion.div>
+                </Link>
 
                 <div>
-                  <motion.h1
-                    className="text-2xl md:text-3xl font-display font-bold"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                  >
-                    <span className="bg-gradient-to-r from-primary-crimson via-primary-navy to-primary-gold bg-clip-text text-transparent">
-                      2D to 3D BIM Converter
-                    </span>
-                  </motion.h1>
+                  <Link href="/">
+                    <motion.h1
+                      className="text-2xl md:text-3xl font-display font-bold cursor-pointer"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                    >
+                      <span className="bg-gradient-to-r from-primary-crimson via-primary-navy to-primary-gold bg-clip-text text-transparent hover:opacity-80 transition-opacity">
+                        2D to 3D BIM Converter
+                      </span>
+                    </motion.h1>
+                  </Link>
                   <motion.p
                     className="text-sm text-neutral-warmGray mt-1 flex items-center gap-2"
                     initial={{ opacity: 0 }}

@@ -9,10 +9,10 @@ import {
   exportSpacesAsCSV,
   exportDoorsAsCSV,
   exportWindowsAsCSV,
-  exportAsIFCLike,
   exportProject,
   exportImage,
 } from '@/lib/export/dataExport'
+import { exportAsIFC } from '@/lib/export/ifcExportUtils'
 import { exportAsGLTF, exportAsOBJ, exportAsSTL } from '@/lib/export/modelExport'
 import { saveProjectToFile, type ProjectData } from '@/lib/project/projectManager'
 import type { MasterJSON } from '@/types'
@@ -112,10 +112,14 @@ export default function ExportPanel({ masterJSON, onClose }: ExportPanelProps) {
 
         case 'ifc':
           if (data) {
-            exportAsIFCLike(data)
+            await exportAsIFC(data, {
+              projectName: '2Dto3D Building Model',
+              author: 'User',
+              organization: 'Kyung Hee University'
+            })
             setExportStatus({
               type: 'success',
-              message: 'IFC-like 파일이 다운로드되었습니다.',
+              message: 'IFC 파일이 다운로드되었습니다.',
             })
           }
           break
@@ -192,7 +196,7 @@ export default function ExportPanel({ masterJSON, onClose }: ExportPanelProps) {
   const exportFormats: FormatConfig[] = [
     { value: 'json', label: 'JSON', description: 'Master JSON 데이터', shortDesc: 'JSON', Icon: JsonIcon },
     { value: 'csv', label: 'CSV', description: '표 형식 데이터', shortDesc: '표 형식', Icon: CsvIcon },
-    { value: 'ifc', label: 'IFC-like', description: 'BIM 교환 형식', shortDesc: 'BIM', Icon: IfcIcon },
+    { value: 'ifc', label: 'IFC', description: 'BIM 교환 형식 (IFC4)', shortDesc: 'BIM', Icon: IfcIcon },
     { value: 'gltf', label: 'glTF', description: '3D 모델 (JSON)', shortDesc: '3D JSON', Icon: GltfIcon },
     { value: 'glb', label: 'GLB', description: '3D 모델 (Binary)', shortDesc: '3D Binary', Icon: GlbIcon },
     { value: 'obj', label: 'OBJ', description: '3D 모델', shortDesc: '3D 모델', Icon: ObjIcon },
@@ -517,8 +521,8 @@ export default function ExportPanel({ masterJSON, onClose }: ExportPanelProps) {
             )}
             {selectedFormat === 'ifc' && (
               <>
-                <p>• Industry Foundation Classes 호환 형식입니다.</p>
-                <p>• BIM 소프트웨어 간 데이터 교환용입니다.</p>
+                <p>• ISO 16739 IFC4 표준 형식입니다.</p>
+                <p>• Revit, ArchiCAD 등 BIM 소프트웨어에서 열 수 있습니다.</p>
               </>
             )}
             {selectedFormat === 'gltf' && (

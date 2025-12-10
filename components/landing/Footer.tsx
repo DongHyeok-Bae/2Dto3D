@@ -236,8 +236,8 @@ export default function Footer() {
           <div className="grid grid-cols-2 md:grid-cols-4 border-b border-primary-gold/20">
             {[
               { label: 'Project', value: '2Dto3D' },
-              { label: 'Version', value: 'v3.0' },
-              { label: 'Date', value: '2024' },
+              { label: 'Version', value: 'v1.0' },
+              { label: 'Date', value: '2025.10~' },
               { label: 'Scale', value: '1:1' },
             ].map((item, i) => (
               <motion.div
@@ -270,7 +270,7 @@ export default function Footer() {
               viewport={{ once: true }}
               transition={{ delay: 0.3 }}
             >
-              AI-Powered 2D Floor Plan to 3D BIM Model Conversion Service
+              AI-Powered 2D Plan to 3D BIM Model Conversion Service
             </motion.div>
           </div>
         </motion.div>
@@ -285,7 +285,7 @@ export default function Footer() {
             transition={{ delay: 0.1 }}
           >
             {/* Logo with laurel frame */}
-            <div className="relative inline-block mb-6">
+            <Link href="/" className="relative inline-block mb-6">
               <motion.div
                 className="flex items-center gap-3"
                 whileHover={{ scale: 1.02 }}
@@ -300,11 +300,11 @@ export default function Footer() {
                 />
                 <MiniLaurel size={28} color="#C5A059" className="opacity-60" />
               </motion.div>
-            </div>
+            </Link>
 
             <p className="text-white/60 text-sm leading-relaxed mb-6">
-              경희대학교 건축공학과와 함께하는<br />
-              지능형 BIM 변환 서비스
+              지능형 BIM 변환 서비스<br />
+              - 경희대학교 건축공학과
             </p>
 
             {/* Tech Stack */}
@@ -312,12 +312,20 @@ export default function Footer() {
               <span className="text-xs text-primary-gold/60 uppercase tracking-wider">Powered by</span>
               <div className="flex flex-wrap gap-2">
                 <TechBadge
-                  name="Google Gemini"
-                  icon={<span className="text-[10px]">AI</span>}
+                  name="Next.js"
+                  icon={<span className="text-[10px]">N</span>}
+                />
+                <TechBadge
+                  name="TypeScript"
+                  icon={<span className="text-[10px]">TS</span>}
                 />
                 <TechBadge
                   name="Three.js"
                   icon={<span className="text-[10px]">3D</span>}
+                />
+                <TechBadge
+                  name="pyrevit"
+                  icon={<span className="text-[10px]">PY</span>}
                 />
                 <TechBadge
                   name="Vercel"
@@ -380,7 +388,7 @@ export default function Footer() {
             {/* Social Links */}
             <div className="flex gap-3">
               <SocialButton
-                href="https://github.com"
+                href="https://github.com/DongHyeok-Bae/2Dto3D"
                 label="GitHub"
                 icon={
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -389,16 +397,7 @@ export default function Footer() {
                 }
               />
               <SocialButton
-                href="https://linkedin.com"
-                label="LinkedIn"
-                icon={
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                  </svg>
-                }
-              />
-              <SocialButton
-                href="mailto:contact@khu.edu"
+                href="mailto:dhbae07@naver.com"
                 label="Email"
                 icon={
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -437,7 +436,7 @@ export default function Footer() {
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
             >
-              <span>© 2024 2Dto3D. All rights reserved.</span>
+              <span>© 2025 2Dto3D. All rights reserved.</span>
               <MiniLaurel size={12} color="#C5A059" className="opacity-40" />
             </motion.p>
 
@@ -454,7 +453,7 @@ export default function Footer() {
                   className="text-primary-gold text-sm font-medium"
                   whileHover={{ scale: 1.05 }}
                 >
-                  Google Gemini AI
+                  AI
                 </motion.span>
                 <span className="text-white/20">&</span>
                 <motion.span

@@ -43,11 +43,18 @@ const nextConfig = {
       '@': path.resolve(__dirname),
     }
 
-    // Three.js 최적화
+    // WASM 지원 (web-ifc)
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    }
+
+    // Three.js 최적화 및 web-ifc 지원
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
+        path: false,
       }
     }
 
@@ -113,6 +120,24 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // WASM 파일 (web-ifc)
+      {
+        source: '/wasm/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
           },
         ],
       },
