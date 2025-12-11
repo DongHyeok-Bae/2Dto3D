@@ -400,14 +400,14 @@ function createGeometricContexts(
   )
   ifcApi.WriteLine(modelID, context3D)
 
-  // Body subcontext
+  // Body subcontext - ParentContext는 명시적 참조 타입으로 전달해야 함
   const bodyContext = ifcApi.CreateIfcEntity(
     modelID,
     IFCGEOMETRICREPRESENTATIONSUBCONTEXT,
     ifcApi.CreateIfcType(modelID, IFCLABEL, 'Body'),
     ifcApi.CreateIfcType(modelID, IFCLABEL, 'Model'),
     null, null, null, null,
-    context3D,
+    { type: 5, value: context3D.expressID },  // ParentContext 참조 (type 5 = REF)
     null,
     { type: 3, value: 'MODEL_VIEW' },
     null
@@ -545,12 +545,12 @@ function createWallEntity(
 ): void {
   const ownerHistory = { type: 5, value: ownerHistoryId }
 
-  // 좌표 변환 (mm -> m)
+  // 좌표 변환 (mm -> m) - JSON의 z를 IFC의 y로 매핑 (평면도 좌표계 변환)
   const startX = wall.start.x * MM_TO_M
-  const startY = wall.start.y * MM_TO_M
-  const startZ = (wall.start.z || 0) * MM_TO_M
+  const startY = (wall.start.z || 0) * MM_TO_M  // z → y (깊이를 평면 Y로)
+  const startZ = (wall.start.y || 0) * MM_TO_M  // y → z (높이를 Z로)
   const endX = wall.end.x * MM_TO_M
-  const endY = wall.end.y * MM_TO_M
+  const endY = (wall.end.z || 0) * MM_TO_M  // z → y
 
   // 벽 치수 계산
   const dx = endX - startX
@@ -608,10 +608,10 @@ function createWallEntity(
   )
   ifcApi.WriteLine(modelID, productShape)
 
-  // Wall entity
+  // Wall entity (IFCWALL 사용 - IFCWALLSTANDARDCASE는 재질 정보 필수로 deprecated됨)
   const wallEntity = ifcApi.CreateIfcEntity(
     modelID,
-    IFCWALLSTANDARDCASE,
+    IFCWALL,
     ifcApi.CreateIfcType(modelID, IFCGLOBALLYUNIQUEID, generateGUID()),
     ownerHistory,
     ifcApi.CreateIfcType(modelID, IFCLABEL, `Wall-${wall.id}`),
@@ -619,7 +619,7 @@ function createWallEntity(
     wallPlacement,
     productShape,
     ifcApi.CreateIfcType(modelID, IFCIDENTIFIER, wall.id),
-    { type: 3, value: 'STANDARD' }
+    { type: 3, value: 'NOTDEFINED' }  // STANDARD는 IFC4에서 deprecated (재질 정보 필수)
   )
   ifcApi.WriteLine(modelID, wallEntity)
 
@@ -650,12 +650,25 @@ function createSpaceEntity(
     return
   }
 
-  // 경계 좌표 변환 (mm -> m)
-  const boundaryPoints = space.boundary.map(p => ({
+  // 경계 좌표 변환 (mm -> m) 및 중복 점 제거 - JSON의 z를 IFC의 y로 매핑
+  const rawPoints = space.boundary.map(p => ({
     x: p.x * MM_TO_M,
-    y: p.y * MM_TO_M,
-    z: (p.z || 0) * MM_TO_M
+    y: (p.z || 0) * MM_TO_M,  // z → y (깊이를 평면 Y로)
+    z: (p.y || 0) * MM_TO_M   // y → z (높이를 Z로)
   }))
+  const boundaryPoints = cleanPolylinePoints(rawPoints)
+
+  // 유효한 점이 부족한 경우 건너뜀
+  if (boundaryPoints.length === 0) {
+    console.warn(`Space ${space.id}: 유효한 점이 부족하여 건너뜀`)
+    return
+  }
+
+  // 퇴화된 형상(면적 없음) 검증 - 닫기 점 제외하고 검사
+  if (!isValidPolygon(boundaryPoints.slice(0, -1))) {
+    console.warn(`Space ${space.id}: 퇴화된 형상(면적 없음)으로 건너뜀`)
+    return
+  }
 
   // 첫 번째 층 사용 (공간은 층 정보가 없을 수 있음)
   const storeyId = Array.from(hierarchy.storeyIds.values())[0]
@@ -664,12 +677,10 @@ function createSpaceEntity(
   // Space placement
   const spacePlacement = createLocalPlacement(ifcApi, modelID, null, 0, 0, baseZ)
 
-  // Polyline으로 경계 생성
+  // Polyline으로 경계 생성 (cleanPolylinePoints에서 이미 닫힘 처리됨)
   const polylinePoints = boundaryPoints.map(p =>
     createCartesianPoint(ifcApi, modelID, p.x, p.y, 0)
   )
-  // 폴리라인 닫기
-  polylinePoints.push(polylinePoints[0])
 
   const polyline = ifcApi.CreateIfcEntity(
     modelID,
@@ -767,12 +778,25 @@ function createSlabEntity(
     return
   }
 
-  // 경계 좌표 변환 (mm -> m)
-  const footprintPoints = slab.footprint.map(p => ({
+  // 경계 좌표 변환 (mm -> m) 및 중복 점 제거 - JSON의 z를 IFC의 y로 매핑
+  const rawPoints = slab.footprint.map(p => ({
     x: p.x * MM_TO_M,
-    y: p.y * MM_TO_M,
-    z: (p.z || 0) * MM_TO_M
+    y: (p.z || 0) * MM_TO_M,  // z → y (깊이를 평면 Y로)
+    z: (p.y || 0) * MM_TO_M   // y → z (높이를 Z로)
   }))
+  const footprintPoints = cleanPolylinePoints(rawPoints)
+
+  // 유효한 점이 부족한 경우 건너뜀
+  if (footprintPoints.length === 0) {
+    console.warn(`Slab ${slab.id}: 유효한 점이 부족하여 건너뜀`)
+    return
+  }
+
+  // 퇴화된 형상(면적 없음) 검증 - 닫기 점 제외하고 검사
+  if (!isValidPolygon(footprintPoints.slice(0, -1))) {
+    console.warn(`Slab ${slab.id}: 퇴화된 형상(면적 없음)으로 건너뜀`)
+    return
+  }
 
   // 해당 층 찾기
   const storeyId = hierarchy.storeyIds.get(slab.level) ||
@@ -781,11 +805,10 @@ function createSlabEntity(
   // Slab placement
   const slabPlacement = createLocalPlacement(ifcApi, modelID, null, 0, 0, 0)
 
-  // Polyline으로 footprint 생성
+  // Polyline으로 footprint 생성 (cleanPolylinePoints에서 이미 닫힘 처리됨)
   const polylinePoints = footprintPoints.map(p =>
     createCartesianPoint(ifcApi, modelID, p.x, p.y, 0)
   )
-  polylinePoints.push(polylinePoints[0]) // 닫기
 
   const polyline = ifcApi.CreateIfcEntity(
     modelID,
@@ -1048,6 +1071,81 @@ function createWindowEntity(
     storeyId,
     [windowEntity.expressID]
   )
+}
+
+// ==================== Polyline Helpers ====================
+
+/**
+ * 폴리곤이 유효한 2D 면적을 가지는지 확인
+ * 모든 점이 일직선 상에 있으면 false (퇴화된 형상)
+ * @param points 폴리곤 점 배열 (닫기 점 제외)
+ * @returns 유효 여부
+ */
+function isValidPolygon(points: Array<{ x: number; y: number }>): boolean {
+  if (points.length < 3) return false
+
+  // 면적 계산 (Shoelace formula)
+  let area = 0
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length
+    area += points[i].x * points[j].y
+    area -= points[j].x * points[i].y
+  }
+  area = Math.abs(area) / 2
+
+  // 면적이 최소 0.0001 m² (10cm x 10cm) 이상이어야 유효
+  return area > 0.0001
+}
+
+/**
+ * 중복 점 제거 및 유효한 폴리라인 생성
+ * - 좌표를 1mm 단위로 반올림하여 부동소수점 오차 제거
+ * - 연속 중복 점 제거
+ * - 퇴화된 형상(점 3개 미만) 감지
+ * @param points 원본 점 배열
+ * @param precision 좌표 반올림 단위 (기본값: 0.001m = 1mm)
+ * @returns 정리된 점 배열 (유효하지 않으면 빈 배열)
+ */
+function cleanPolylinePoints(
+  points: Array<{ x: number; y: number; z?: number }>,
+  precision: number = 0.001
+): Array<{ x: number; y: number; z: number }> {
+  if (points.length < 3) return []
+
+  // 1. 좌표 반올림 (부동소수점 오차 제거)
+  const rounded = points.map(p => ({
+    x: Math.round(p.x / precision) * precision,
+    y: Math.round(p.y / precision) * precision,
+    z: Math.round((p.z || 0) / precision) * precision
+  }))
+
+  // 2. 연속 중복 제거
+  const result: Array<{ x: number; y: number; z: number }> = []
+  for (const current of rounded) {
+    const prev = result[result.length - 1]
+    if (!prev || prev.x !== current.x || prev.y !== current.y || prev.z !== current.z) {
+      result.push(current)
+    }
+  }
+
+  // 3. 마지막 점이 첫 점과 같으면 제거 (닫기는 나중에)
+  if (result.length >= 2) {
+    const first = result[0]
+    const last = result[result.length - 1]
+    if (first.x === last.x && first.y === last.y && first.z === last.z) {
+      result.pop()
+    }
+  }
+
+  // 4. 최소 3점 필요 (삼각형)
+  if (result.length < 3) {
+    return []
+  }
+
+  // 5. 닫힌 폴리라인으로 만들기
+  result.push({ ...result[0] })
+
+  return result
 }
 
 // ==================== Geometry Helpers ====================
