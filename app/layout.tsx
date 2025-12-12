@@ -10,7 +10,7 @@ const notoSerifKR = Noto_Serif_KR({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d-khu.kr'),
   title: {
     default: '2Dto3D - AI 기반 건축 도면 3D BIM 변환 서비스',
     template: '%s | 2Dto3D'
@@ -102,10 +102,10 @@ const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: '2Dto3D',
-  url: process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app',
+  url: process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d-khu.kr',
   logo: {
     '@type': 'ImageObject',
-    url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app'}/logo-crossover.png`,
+    url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d-khu.kr'}/logo-crossover.png`,
     width: 1200,
     height: 630,
   },
@@ -121,14 +121,14 @@ const websiteJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: '2Dto3D',
-  url: process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app',
+  url: process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d-khu.kr',
   description: 'AI 기반 건축 도면 3D BIM 변환 서비스',
   publisher: {
     '@type': 'Organization',
     name: '2Dto3D',
     logo: {
       '@type': 'ImageObject',
-      url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app'}/logo-crossover.png`,
+      url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d-khu.kr'}/logo-crossover.png`,
     },
   },
 }

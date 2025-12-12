@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d.vercel.app'
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://2dto3d-khu.kr'
 
   // 현재 날짜
   const currentDate = new Date().toISOString()
