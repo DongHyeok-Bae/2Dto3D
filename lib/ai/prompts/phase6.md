@@ -62,8 +62,8 @@
 
 6.  **`components.spaces` 생성 (변환):**
     -   `spaces` JSON의 `spaces` 배열을 순회합니다.
-    -   `boundary` (픽셀 폴리곤)를 [좌표계 변환 규칙]에 따라 3D `mm` 폴리곤으로 변환합니다.
-    -   `type` (추론된 용도)와 `id`를 포함합니다.
+    -   `boundary` (픽셀 폴리곤)를 [좌표계 변환 규칙]에 따라 `boundary_mm` (3D `mm` 폴리곤)으로 변환합니다.
+    -   `typeInferred` (추론된 용도)와 `id`를 그대로 포함합니다.
 
 ---
 
@@ -130,8 +130,8 @@
     "spaces": [
       {
         "id": "string (고유 ID, 예: S-001)",
-        "type": "string (예: living_assumed)",
-        "boundary": [
+        "typeInferred": "string (예: living_assumed)",
+        "boundary_mm": [
           { "x": "number", "y": "number (0)", "z": "number" }
           // ... (mm 단위 3D 공간 경계)
         ]

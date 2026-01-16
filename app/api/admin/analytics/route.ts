@@ -14,6 +14,9 @@ import { getAnalyticsRange, cleanupOldAnalytics } from '@/lib/analytics/analytic
 import { getStorageEnvironment } from '@/lib/config/environment'
 import { calculateSummary } from '@/types/analytics'
 
+// 이 라우트는 searchParams를 사용하므로 동적 렌더링 필요
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
