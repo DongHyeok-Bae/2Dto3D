@@ -10,6 +10,7 @@ import GlowButton, { ArrowRightIcon, SparkleIcon } from './GlowButton'
 import ParticleField, { SparkleField, RisingParticles } from './ParticleField'
 import AnimatedCounter from './AnimatedCounter'
 import { MiniLaurel } from './LaurelFrame'
+import MagnoModal from './MagnoModal'
 
 // Dynamic import for Three.js component (heavy)
 const InteractiveBuilding = dynamic(() => import('./InteractiveBuilding'), {
@@ -44,6 +45,7 @@ const stats = [
 export default function HeroSection() {
   const [titleComplete, setTitleComplete] = useState(false)
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [magnoModalOpen, setMagnoModalOpen] = useState(false)
 
   // Track mouse for parallax effect
   useEffect(() => {
@@ -151,7 +153,7 @@ export default function HeroSection() {
               className="mt-10 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
             >
               <GlowButton
-                href="/upload"
+                onClick={() => setMagnoModalOpen(true)}
                 variant="neon"
                 size="lg"
                 icon={<SparkleIcon />}
@@ -394,6 +396,9 @@ export default function HeroSection() {
       {/* Side gradients for depth */}
       <div className="absolute top-0 left-0 bottom-0 w-32 bg-gradient-to-r from-primary-navy-dark/50 to-transparent pointer-events-none" />
       <div className="absolute top-0 right-0 bottom-0 w-32 bg-gradient-to-l from-primary-navy-dark/50 to-transparent pointer-events-none" />
+
+      {/* MAGNO 안내 모달 */}
+      <MagnoModal isOpen={magnoModalOpen} onClose={() => setMagnoModalOpen(false)} />
     </section>
   )
 }
